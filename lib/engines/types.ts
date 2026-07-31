@@ -3,9 +3,12 @@
 // 지원 언어 8종의 코드. 표시용 메타데이터(네이티브 표기 라벨)는 ./config의 SUPPORTED_LANGUAGES 참고.
 export type LanguageCode = "ko" | "en" | "ja" | "zh" | "es" | "fr" | "de" | "vi";
 
+// 원본 언어만 "자동 감지"를 고를 수 있다 (번역할 언어는 항상 명시적으로 골라야 함).
+export type SourceLanguageCode = LanguageCode | "auto";
+
 export interface TranslateParams {
   text: string;
-  sourceLang: LanguageCode;
+  sourceLang: SourceLanguageCode;
   targetLang: LanguageCode;
 }
 

@@ -1,4 +1,4 @@
-import { EngineDefinition, EngineResult, LanguageCode } from "./types";
+import { EngineDefinition, EngineResult, LanguageCode, SourceLanguageCode } from "./types";
 import { ENGINE_CONFIG } from "./config";
 import { translateWithDeepl } from "./deepl";
 import { translateWithMyMemory } from "./mymemory";
@@ -23,11 +23,11 @@ export const ENGINES: EngineDefinition[] = ENGINE_CONFIG.map((cfg) => ({
   translate: TRANSLATORS[cfg.id],
 }));
 
-export type { EngineResult, LanguageCode };
+export type { EngineResult, LanguageCode, SourceLanguageCode };
 
 export async function getTranslations(
   text: string,
-  sourceLang: LanguageCode,
+  sourceLang: SourceLanguageCode,
   targetLang: LanguageCode,
   enabledEngineIds: string[]
 ): Promise<Record<string, EngineResult>> {

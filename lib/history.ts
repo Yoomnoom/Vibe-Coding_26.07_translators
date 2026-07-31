@@ -1,5 +1,5 @@
 import type { EngineId } from "./engines/config";
-import type { LanguageCode } from "./engines/types";
+import type { LanguageCode, SourceLanguageCode } from "./engines/types";
 
 // 노션이 메인 저장소지만, 새로고침하면 세션 내 기록이 다 날아가는 걸 보완하기 위한
 // 가벼운 로컬 히스토리(localStorage). PRD.md §6.4, §15-2 참고.
@@ -16,7 +16,7 @@ export interface HistorySelectedResult {
 export interface TranslationHistoryEntry {
   id: string;
   originalText: string;
-  sourceLang: LanguageCode;
+  sourceLang: SourceLanguageCode;
   targetLang: LanguageCode;
   selectedEngineIds: EngineId[];
   selectedResults: HistorySelectedResult[];

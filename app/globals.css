@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+/*
+ * makingsoftware.com 스타일 참조: 크림빛 종이 배경 + 단일 코발트 블루 + 도면(블루프린트) 라인아트.
+ * 다크모드는 이 아날로그/청사진 톤과 상충해 의도적으로 단일 라이트 테마로 고정한다.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf7ef;
+  --paper-card: #fffdf6;
+  --foreground: #1b1d29;
+  --accent: #2b48d9;
+  --accent-dark: #16265e;
+  --accent-soft: #e8ecfa;
+  --line: #b9c3ee;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-paper-card: var(--paper-card);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-soft: var(--accent-soft);
+  --color-line: var(--line);
+  --font-display: var(--font-display);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-serif), serif;
+}
+
+/* 별표 행 구분선 (makingsoftware.com의 ❋❋❋ 섹션 구분 모티프) */
+.divider-asterisk {
+  color: var(--accent);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0.55;
+  user-select: none;
+}
+
+/* 도면(청사진) 스타일 패널: 얇은 블루 테두리 + 모서리 코너 마크 */
+.blueprint-panel {
+  position: relative;
+  background: var(--paper-card);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.blueprint-panel::before,
+.blueprint-panel::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-color: var(--accent);
+  border-style: solid;
+  pointer-events: none;
+}
+.blueprint-panel::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.blueprint-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+/* 여백에 세로로 붙는 모노스페이스 라벨 (도면 주석 느낌) */
+.label-tag {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTranslations, LanguageCode } from "@/lib/engines";
+import { getTranslations, LanguageCode, SourceLanguageCode } from "@/lib/engines";
 import { ENGINE_CONFIG } from "@/lib/engines/config";
 
 export const runtime = "nodejs";
@@ -7,6 +7,8 @@ export const runtime = "nodejs";
 // PRD.md §3/§6.1 — 원본/번역 언어를 사용자가 직접 고를 수 있어야 한다. (8개 언어 지원)
 // lib/engines/types.ts의 LanguageCode와 동일한 8개 값을 그대로 나열해 화이트리스트로 쓴다.
 const SUPPORTED_LANGS: LanguageCode[] = ["ko", "en", "ja", "zh", "es", "fr", "de", "vi"];
+// 원본 언어는 위 8개 + "auto"(자동 감지)까지 허용한다. 번역할 언어(targetLang)는 auto를 허용하지 않는다.
+const SUPPORTED_SOURCE_LANGS: SourceLanguageCode[] = [...SUPPORTED_LANGS, "auto"];
 
 const MAX_TEXT_LENGTH = 3000;
 
@@ -23,6 +25,10 @@ interface TranslateRequestBody {
 
 function isSupportedLang(value: unknown): value is LanguageCode {
   return typeof value === "string" && (SUPPORTED_LANGS as readonly string[]).includes(value);
+}
+
+function isSupportedSourceLang(value: unknown): value is SourceLanguageCode {
+  return typeof value === "string" && (SUPPORTED_SOURCE_LANGS as readonly string[]).includes(value);
 }
 
 export async function POST(req: NextRequest) {
@@ -51,12 +57,13 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. 지원하지 않는 언어 코드 거부 (기존엔 조용히 "ko-en"으로 대체되던 버그)
-  if (!isSupportedLang(sourceLang) || !isSupportedLang(targetLang)) {
+  // sourceLang은 "auto"(자동 감지)까지 허용하고, targetLang은 반드시 실제 언어여야 한다.
+  if (!isSupportedSourceLang(sourceLang) || !isSupportedLang(targetLang)) {
     return NextResponse.json(
       {
-        error: `지원하지 않는 언어 코드입니다. sourceLang/targetLang은 다음 중 하나여야 합니다: ${SUPPORTED_LANGS.join(
+        error: `지원하지 않는 언어 코드입니다. sourceLang은 ${SUPPORTED_SOURCE_LANGS.join(
           ", "
-        )}`,
+        )} 중 하나, targetLang은 ${SUPPORTED_LANGS.join(", ")} 중 하나여야 합니다.`,
       },
       { status: 400 }
     );

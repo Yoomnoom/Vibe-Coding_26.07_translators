@@ -1,15 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Do_Hyeon, IBM_Plex_Mono, Noto_Serif_KR } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// makingsoftware.com 참조 톤: 픽셀풍 굵은 타이틀(Do Hyeon) + 본문 세리프(Noto Serif KR) + 주석용 모노스페이스(IBM Plex Mono)
+const doHyeon = Do_Hyeon({
+  variable: "--font-display",
   subsets: ["latin"],
+  weight: "400",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const notoSerifKr = Noto_Serif_KR({
+  variable: "--font-serif",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -24,8 +33,8 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="ko"
+      className={`${doHyeon.variable} ${notoSerifKr.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

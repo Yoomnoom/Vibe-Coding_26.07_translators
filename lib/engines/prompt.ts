@@ -1,4 +1,4 @@
-import { LanguageCode } from "./types";
+import { LanguageCode, SourceLanguageCode } from "./types";
 
 // LLM 프롬프트에 자연스러운 한국어 문장으로 넣기 위한 대상 언어 표시명.
 // (SUPPORTED_LANGUAGES의 라벨은 드롭다운 UI용 네이티브 표기라 프롬프트 문장에는 어색해서 별도로 둔다.)
@@ -14,7 +14,7 @@ const TARGET_LABEL_KO: Record<LanguageCode, string> = {
 };
 
 /** AI(LLM) 번역 엔진(Gemini/Groq/OpenRouter)에서 공통으로 쓰는 단순 번역 프롬프트 */
-export function buildTranslationPrompt(sourceLang: LanguageCode, targetLang: LanguageCode, text: string) {
+export function buildTranslationPrompt(sourceLang: SourceLanguageCode, targetLang: LanguageCode, text: string) {
   const targetLabel = TARGET_LABEL_KO[targetLang] ?? targetLang;
   void sourceLang; // 모델이 자동 감지 가능하므로 프롬프트에는 굳이 명시하지 않는다.
   return [

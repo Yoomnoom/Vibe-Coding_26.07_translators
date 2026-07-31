@@ -12,10 +12,9 @@ interface BattleViewTabProps {
 
 const VERDICT_STYLE: Record<WordVerdict, string> = {
   match: "",
-  minority:
-    "bg-yellow-200/70 text-yellow-900 underline decoration-yellow-600 decoration-2 underline-offset-2 dark:bg-yellow-900/50 dark:text-yellow-200",
+  minority: "bg-yellow-200/70 text-yellow-900 underline decoration-yellow-600 decoration-2 underline-offset-2",
   mismatch:
-    "bg-red-200/70 text-red-900 font-bold underline decoration-wavy decoration-red-600 decoration-2 underline-offset-2 dark:bg-red-900/50 dark:text-red-200",
+    "bg-red-200/70 text-red-900 font-bold underline decoration-wavy decoration-red-600 decoration-2 underline-offset-2",
 };
 
 const VERDICT_MARK: Record<WordVerdict, string> = {
@@ -32,9 +31,7 @@ const VERDICT_TITLE: Record<WordVerdict, string> = {
 
 function EmptyNotice({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-      {text}
-    </div>
+    <div className="blueprint-panel border-dashed p-8 text-center font-mono text-xs text-foreground/50">{text}</div>
   );
 }
 
@@ -65,30 +62,28 @@ export function BattleViewTab({ translatedText, cardStates }: BattleViewTabProps
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="blueprint-panel flex flex-wrap items-center gap-3 p-4">
         <span
-          className={`rounded-full px-3 py-1 text-sm font-semibold ${
+          className={`rounded-full px-3 py-1 font-mono text-sm font-semibold ${
             result.matchRate >= 70
-              ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
+              ? "bg-emerald-100 text-emerald-800"
               : result.matchRate >= 40
-                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200"
-                : "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200"
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-red-100 text-red-800"
           }`}
         >
           일치율 {result.matchRate}%
         </span>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        <span className="font-mono text-xs text-foreground/50">
           {result.matchCount} / {result.comparedLength} 어절 일치 (성공한 엔진 {successfulEntries.length}개 비교)
         </span>
-        <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="flex items-center gap-3 font-mono text-xs text-foreground/40">
           <span>
-            <span className="rounded bg-yellow-200/70 px-1 underline decoration-yellow-600 dark:bg-yellow-900/50">
-              ▲
-            </span>{" "}
+            <span className="rounded bg-yellow-200/70 px-1 underline decoration-yellow-600">▲</span>{" "}
             소수 의견
           </span>
           <span>
-            <span className="rounded bg-red-200/70 px-1 font-bold underline decoration-wavy decoration-red-600 dark:bg-red-900/50">
+            <span className="rounded bg-red-200/70 px-1 font-bold underline decoration-wavy decoration-red-600">
               ✕
             </span>{" "}
             완전 불일치
@@ -97,19 +92,16 @@ export function BattleViewTab({ translatedText, cardStates }: BattleViewTabProps
       </div>
 
       {result.truncated && (
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+        <p className="font-mono text-xs text-foreground/40">
           엔진마다 어절 수가 달라 {result.comparedLength}번째 어절 이후로는 구조가 달라 비교하지 않았습니다.
         </p>
       )}
 
       <div className="flex flex-col gap-3">
         {result.engines.map((engine) => (
-          <div
-            key={engine.id}
-            className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            <p className="mb-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{engine.label}</p>
-            <p className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+          <div key={engine.id} className="blueprint-panel p-4">
+            <p className="label-tag mb-2">{engine.label}</p>
+            <p className="font-serif text-sm leading-relaxed text-foreground/80">
               {engine.words.map((word, i) => {
                 const compared = i < result.comparedLength;
                 const verdict = compared ? result.verdicts[i] : null;
@@ -117,9 +109,7 @@ export function BattleViewTab({ translatedText, cardStates }: BattleViewTabProps
                   <span key={i}>
                     <span
                       title={verdict ? VERDICT_TITLE[verdict] : "구조가 달라 비교하지 않음"}
-                      className={`rounded px-0.5 ${
-                        verdict ? VERDICT_STYLE[verdict] : "italic text-zinc-400 dark:text-zinc-600"
-                      }`}
+                      className={`rounded px-0.5 ${verdict ? VERDICT_STYLE[verdict] : "italic text-foreground/30"}`}
                     >
                       {verdict && VERDICT_MARK[verdict] && (
                         <span aria-hidden className="mr-0.5 text-[0.7em]">
