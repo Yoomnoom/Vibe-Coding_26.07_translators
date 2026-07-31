@@ -236,7 +236,7 @@ export function BasicCompareTab({
         카드는 파란 테두리와 체크 표시로 구분됩니다.
       </p>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)]">
       <section className="blueprint-panel flex flex-col gap-3 self-start p-4">
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
           <label className="flex items-center gap-1.5">
