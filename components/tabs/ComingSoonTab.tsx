@@ -5,7 +5,7 @@ interface ComingSoonTabProps {
   description: string;
 }
 
-// ②~⑥번 특색 아이디어 탭 공용 placeholder (PRD.md §7).
+// ③~⑥번 특색 아이디어 탭 공용 placeholder (PRD.md §7). ①·②번은 이미 실구현으로 대체됨.
 // 실제 로직은 아직 없고, 기능 설명 + "준비 중" 안내만 보여준다.
 export function ComingSoonTab({ title, description }: ComingSoonTabProps) {
   return (

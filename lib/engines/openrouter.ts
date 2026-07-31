@@ -15,6 +15,14 @@ const FREE_MODELS = [
   "google/gemma-4-31b-it:free",
 ];
 
+// 이미지 텍스트 추출(OCR, PRD.md §15 12번)용 무료 비전(이미지 입력) 모델 로테이션.
+// 위 FREE_MODELS(번역용)와 겹치지 않는 모델로 일부러 분리했다 — 같은 모델을 번역/OCR 양쪽에서
+// 같이 쓰면 무료 사용량 한도를 두 기능이 나눠 써야 해서 더 빨리 소진될 수 있기 때문.
+// 실측(2026-08-01): nemotron-nano-12b-v2-vl은 빠르지만 드물게 표현을 "교정"하는 경향이 있고
+// (예: "adorkable" -> "adorable"), omni-reasoning은 원문에 더 가깝게 추출하지만 추론 과정이 섞여
+// 상대적으로 느리다 — 그래서 vl을 1순위, omni-reasoning을 2순위 폴백으로 둔다.
+const OCR_FREE_MODELS = ["nvidia/nemotron-nano-12b-v2-vl:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"];
+
 interface OpenRouterResponse {
   choices?: { message?: { content?: string } }[];
   error?: { message?: string };
@@ -82,5 +90,83 @@ export async function translateWithOpenRouter({ text, sourceLang, targetLang }: 
   }
   return {
     error: "OpenRouter 무료 모델을 모두 시도했지만 응답을 받지 못했습니다 (무료 사용량 한도 초과 가능). 잠시 후 다시 시도해주세요.",
+  };
+}
+
+const OCR_PROMPT =
+  "Extract the text in this image exactly as written, without correcting spelling or wording. " +
+  "Reply with only the extracted text, no explanation. If there is no text, reply with an empty response.";
+
+/**
+ * 이미지 텍스트 추출(OCR)의 2순위 폴백. Gemini(1순위, lib/engines/gemini.ts의 extractTextFromImage)가
+ * 실패했을 때만 호출된다. OCR_FREE_MODELS를 순서대로 시도한다 (번역용 FREE_MODELS와 겹치지 않는 모델 —
+ * 위 상수 선언부 주석 참고).
+ */
+export async function extractTextWithOpenRouter(imageBase64: string, mimeType: string): Promise<EngineResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." };
+  }
+
+  const attempts: string[] = [];
+
+  for (const model of OCR_FREE_MODELS) {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "http://localhost:3000",
+          "X-Title": "Translation Comparator",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: OCR_PROMPT },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+              ],
+            },
+          ],
+          temperature: 0,
+          max_tokens: MAX_TOKENS,
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+
+      if (res.status === 429) {
+        attempts.push(`${model}: 429 한도 초과`);
+        continue;
+      }
+
+      const data = (await res.json()) as OpenRouterResponse;
+
+      if (!res.ok) {
+        attempts.push(`${model}: ${res.status} ${data.error?.message ?? ""}`.trim());
+        continue;
+      }
+
+      const extracted = data.choices?.[0]?.message?.content?.trim();
+      if (extracted === undefined) {
+        attempts.push(`${model}: 빈 응답`);
+        continue;
+      }
+
+      return { text: extracted, model };
+    } catch (err) {
+      attempts.push(`${model}: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
+    }
+  }
+
+  console.error("[OpenRouter OCR] 모든 무료 비전 모델 호출 실패:", attempts.join(" | "));
+  const hadTimeout = attempts.some((a) => /timeout|abort/i.test(a));
+  if (hadTimeout) {
+    return { error: "OpenRouter 응답이 너무 늦어 요청을 취소했습니다. 잠시 후 다시 시도해주세요." };
+  }
+  return {
+    error: "OpenRouter 무료 비전 모델을 모두 시도했지만 응답을 받지 못했습니다 (무료 사용량 한도 초과 가능). 잠시 후 다시 시도해주세요.",
   };
 }

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTranslations, LanguageCode, SourceLanguageCode } from "@/lib/engines";
-import { ENGINE_CONFIG } from "@/lib/engines/config";
+import { ENGINE_CONFIG, SUPPORTED_LANGUAGES } from "@/lib/engines/config";
 import { detectLanguageViaMyMemory } from "@/lib/engines/mymemory";
 
 export const runtime = "nodejs";
 
-// PRD.md §3/§6.1 — 원본/번역 언어를 사용자가 직접 고를 수 있어야 한다. (8개 언어 지원)
-// lib/engines/types.ts의 LanguageCode와 동일한 8개 값을 그대로 나열해 화이트리스트로 쓴다.
-const SUPPORTED_LANGS: LanguageCode[] = ["ko", "en", "ja", "zh", "es", "fr", "de", "vi"];
+// PRD.md §3/§6.1 — 원본/번역 언어를 사용자가 직접 고를 수 있어야 한다.
+// SUPPORTED_LANGUAGES(lib/engines/config.ts)를 유일한 소스로 파생시켜, 언어가 추가/제거될 때
+// 이 화이트리스트가 여러 곳에서 따로 관리되며 어긋나지 않게 한다.
+const SUPPORTED_LANGS: LanguageCode[] = SUPPORTED_LANGUAGES.map((l) => l.code);
 // 원본 언어는 위 8개 + "auto"(자동 감지)까지 허용한다. 번역할 언어(targetLang)는 auto를 허용하지 않는다.
 const SUPPORTED_SOURCE_LANGS: SourceLanguageCode[] = [...SUPPORTED_LANGS, "auto"];
 
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "활성화된 번역 엔진이 없습니다." }, { status: 400 });
   }
 
-  // 4. 알 수 없는 엔진 id가 섞여 있으면 거부 (기존엔 조용히 빈 결과 {}를 반환하던 버그)
+  // 5. 알 수 없는 엔진 id가 섞여 있으면 거부 (기존엔 조용히 빈 결과 {}를 반환하던 버그)
   const unknownEngines = enabledEngines.filter((id) => !KNOWN_ENGINE_IDS.includes(id));
   if (unknownEngines.length > 0) {
     return NextResponse.json(

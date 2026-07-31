@@ -50,6 +50,14 @@ function truncate(value: string) {
   return value.length > NOTION_TEXT_LIMIT ? value.slice(0, NOTION_TEXT_LIMIT) : value;
 }
 
+// 원문(제목)은 길이 보장이 없어 그대로 쓰면 목록에서 스캔하기 어렵다 — 제목은 적당히 줄이고,
+// 전체 원문은 페이지 본문(children)에 따로 넣어 정보 손실 없이 목록만 짧게 유지한다.
+const TITLE_MAX_LENGTH = 60;
+function truncateTitle(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > TITLE_MAX_LENGTH ? `${trimmed.slice(0, TITLE_MAX_LENGTH)}…` : trimmed;
+}
+
 interface EngineResultPayload {
   text?: string;
   error?: string;
@@ -82,16 +90,17 @@ export async function POST(req: NextRequest) {
 
   const { originalText, selectedEngineIds, allResults } = body;
 
+  // 1. 원문 필수
   if (!originalText?.trim()) {
     return NextResponse.json({ error: "원문은 필수입니다." }, { status: 400 });
   }
 
-  // 5. 최소 1개 이상 선택되어야 함
+  // 2. 최소 1개 이상 선택되어야 함
   if (!Array.isArray(selectedEngineIds) || selectedEngineIds.length === 0) {
     return NextResponse.json({ error: "저장할 번역기를 최소 1개 이상 선택하세요." }, { status: 400 });
   }
 
-  // 1. 알려진 엔진 화이트리스트 검증 (가짜 옵션이 노션에 생성되는 것을 방지)
+  // 3. 알려진 엔진 화이트리스트 검증 (가짜 옵션이 노션에 생성되는 것을 방지)
   const unknownIds = selectedEngineIds.filter((id) => !KNOWN_ENGINE_IDS.includes(id));
   if (unknownIds.length > 0) {
     return NextResponse.json(
@@ -100,7 +109,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 6. 동일 원문+언어쌍+선택 엔진 조합으로 10초 이내 중복 저장 요청이 오면
+  // 4. 동일 원문+언어쌍+선택 엔진 조합으로 10초 이내 중복 저장 요청이 오면
   //    새로 노션에 쓰지 않고 직전 결과를 그대로 반환한다.
   const now = Date.now();
   pruneExpired(now);
@@ -116,45 +125,67 @@ export async function POST(req: NextRequest) {
 
   const notion = new Client({ auth: apiKey });
 
-  // 3. "선택한 번역 결과"는 선택된 엔진들의 결과를 사람이 읽기 좋게 모아 텍스트로 정리
-  const selectedText = selectedEngineIds
-    .map((id) => {
-      const text = allResults?.[id]?.text?.trim();
-      return `${ENGINE_LABELS[id]}: ${text && text.length > 0 ? text : "(결과 없음)"}`;
-    })
-    .join("\n\n");
-
+  // 5. 속성(property)은 필터/정렬에 쓰는 최소한의 메타데이터만 남긴다 (원문/선택한 번역기/저장 시각).
+  //    엔진별 결과 전체는 property 칸(서식 없음, 안 쓴 엔진도 "비어 있음"으로 나열됨)이 아니라
+  //    페이지 본문에 제목+문단으로 정리해서 넣는다 — 사용성 피드백(2026-08-01) 반영.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const properties: Record<string, any> = {
     원문: {
-      title: [{ text: { content: truncate(originalText) } }],
+      title: [{ text: { content: truncateTitle(originalText) } }],
     },
-    // 2. Multi-select로 스키마 변경 완료 — 여러 엔진을 동시에 저장
     "선택한 번역기": {
       multi_select: selectedEngineIds.map((id) => ({ name: ENGINE_LABELS[id] })),
-    },
-    "선택한 번역 결과": {
-      rich_text: [{ text: { content: truncate(selectedText) } }],
     },
     "저장 시각": {
       date: { start: new Date().toISOString() },
     },
   };
 
-  // 4. allResults에 있는 각 엔진의 결과는 기존처럼 엔진별 컬럼에 채우고, 없는 엔진은 빈 값으로 둔다.
+  // 6. 페이지 본문: 결과가 있는 엔진만 제목(선택됐으면 "✅ 라벨 (선택됨)")+문단으로 나열.
+  //    결과 없는(빈 값/에러) 엔진은 아예 항목 자체를 만들지 않는다 — property 방식과 달리
+  //    "비어 있음"이 나열되지 않는다.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const children: any[] = [
+    {
+      object: "block",
+      type: "heading_2",
+      heading_2: { rich_text: [{ type: "text", text: { content: "원문" } }] },
+    },
+    {
+      object: "block",
+      type: "paragraph",
+      paragraph: { rich_text: [{ type: "text", text: { content: truncate(originalText) } }] },
+    },
+    {
+      object: "block",
+      type: "heading_2",
+      heading_2: { rich_text: [{ type: "text", text: { content: "번역 결과 비교" } }] },
+    },
+  ];
   for (const id of KNOWN_ENGINE_IDS) {
-    const value = allResults?.[id]?.text;
-    if (value && value.trim()) {
-      properties[`${ENGINE_LABELS[id]} 결과`] = {
-        rich_text: [{ text: { content: truncate(value) } }],
-      };
-    }
+    const value = allResults?.[id]?.text?.trim();
+    if (!value) continue;
+    const isSelected = selectedEngineIds.includes(id);
+    const heading = isSelected ? `✅ ${ENGINE_LABELS[id]} (선택됨)` : ENGINE_LABELS[id];
+    children.push(
+      {
+        object: "block",
+        type: "heading_3",
+        heading_3: { rich_text: [{ type: "text", text: { content: heading } }] },
+      },
+      {
+        object: "block",
+        type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: truncate(value) } }] },
+      }
+    );
   }
 
   try {
     const page = await notion.pages.create({
       parent: { database_id: databaseId },
       properties,
+      children,
     });
 
     const url = "url" in page ? (page as { url?: string }).url : undefined;

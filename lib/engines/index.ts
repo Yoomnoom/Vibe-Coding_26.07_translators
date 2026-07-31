@@ -17,7 +17,7 @@ const TRANSLATORS: Record<string, EngineDefinition["translate"]> = {
 // 번역 엔진 레지스트리. 새 엔진을 추가하려면 lib/engines/<engine>.ts를 만들고
 // config.ts의 ENGINE_CONFIG와 위 TRANSLATORS 맵에 한 줄씩만 추가하면 된다.
 // (Claude는 API 키가 비어있어 이번 범위에서는 제외 — PRD.md §5, §10)
-export const ENGINES: EngineDefinition[] = ENGINE_CONFIG.map((cfg) => ({
+const ENGINES: EngineDefinition[] = ENGINE_CONFIG.map((cfg) => ({
   id: cfg.id,
   label: cfg.label,
   translate: TRANSLATORS[cfg.id],

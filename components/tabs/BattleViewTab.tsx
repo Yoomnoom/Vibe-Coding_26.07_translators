@@ -18,7 +18,7 @@ interface BattleViewTabProps {
 // 일치/소수 의견/완전 불일치 구간을 하이라이트로 보여준다.
 export function BattleViewTab({ translatedText, cardStates, onGoToBasicTab }: BattleViewTabProps) {
   if (!translatedText) {
-    return <TabEmptyNotice text="먼저 '기본 비교' 탭에서 번역을 실행해주세요." onGoToBasicTab={onGoToBasicTab} />;
+    return <TabEmptyNotice text="먼저 '결과 비교'에서 번역을 실행해주세요." onGoToBasicTab={onGoToBasicTab} />;
   }
 
   const successfulEntries = ENGINE_CONFIG.filter((engine) => cardStates[engine.id]?.status === "done").map(

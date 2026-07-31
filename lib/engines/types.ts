@@ -24,3 +24,11 @@ export interface EngineDefinition {
   label: string;
   translate: (params: TranslateParams) => Promise<EngineResult>;
 }
+
+// 역번역 배치 호출(lib/backTranslate.ts)에서 쓰는 결과 타입. 여러 문장을 한 번의 호출로 번역하고
+// 순서를 그대로 유지한 texts 배열을 돌려주거나, 실패 시 error만 채운다 (부분 성공은 지원하지 않음 —
+// 배치 호출 자체가 실패하면 다음 우선순위 엔진으로 폴백하는 게 목적이라 전부/전무로 충분함).
+export interface BatchEngineResult {
+  texts?: string[];
+  error?: string;
+}

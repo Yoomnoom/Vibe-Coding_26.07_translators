@@ -24,3 +24,43 @@ export function buildTranslationPrompt(sourceLang: SourceLanguageCode, targetLan
     `문장: ${text}`,
   ].join("\n");
 }
+
+/**
+ * 역번역 배치(lib/backTranslate.ts)에서 Gemini/Groq에 "N개 문장을 한 번의 호출로" 맡길 때 쓰는 프롬프트.
+ * DeepL은 text 파라미터를 배열로 보내 한 번에 여러 문장을 받을 수 있지만, LLM은 그런 배치 API가 없어
+ * 번호를 매긴 목록으로 물어보고 번호 기준으로 답을 파싱하는 방식으로 같은 효과(호출 1회)를 낸다.
+ */
+export function buildBatchTranslationPrompt(targetLang: LanguageCode, texts: string[]): string {
+  const targetLabel = TARGET_LABEL_KO[targetLang] ?? targetLang;
+  const numbered = texts.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  return [
+    `아래 ${texts.length}개 문장을 각각 ${targetLabel}로 자연스럽게 번역해줘.`,
+    `각 문장의 번호를 그대로 유지해서 "번호. 번역문" 형식으로만 답해줘.`,
+    `설명, 원문 반복, 따옴표 등 번역문 외의 텍스트는 절대 추가하지 마. 반드시 ${texts.length}개 전부 답해줘.`,
+    ``,
+    numbered,
+  ].join("\n");
+}
+
+/**
+ * buildBatchTranslationPrompt로 만든 프롬프트의 응답("1. ...\n2. ...")을 파싱한다.
+ * 번호 중 하나라도 못 찾으면(모델이 형식을 안 지켰거나 일부만 답한 경우) null을 돌려줘 호출부가
+ * 다음 우선순위 엔진으로 폴백하게 한다 — 부분 결과를 억지로 짜맞추지 않는다.
+ */
+export function parseNumberedBatchResponse(raw: string, count: number): string[] | null {
+  const map = new Map<number, string>();
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^\s*(\d+)[.).]\s*(.+)$/);
+    if (m) {
+      map.set(parseInt(m[1], 10), m[2].trim());
+    }
+  }
+
+  const result: string[] = [];
+  for (let i = 1; i <= count; i++) {
+    const text = map.get(i);
+    if (!text) return null;
+    result.push(text);
+  }
+  return result;
+}

@@ -4,7 +4,10 @@
 
 export type WordVerdict = "match" | "minority" | "mismatch";
 
-// 어절 판정별 표시 스타일. BattleViewTab/BackTranslateCheckTab이 공유해서 쓴다(복붙 방지).
+// 어절 판정별 표시 스타일. BattleViewTab이 사용한다.
+// (예전엔 역번역 체크 탭도 이 어절 비교 로직을 재사용했으나, 어순만 달라도 낮은 점수가 나오는 등
+// 나이브한 지표라는 게 실사용으로 확인되어 역번역 체크(BackTranslationTab)는 자동 점수 없이
+// 원문/번역/역번역을 나란히 보여주는 방식으로 교체했다 — 이 파일은 배틀 뷰 전용으로 남는다.)
 export const VERDICT_STYLE: Record<WordVerdict, string> = {
   match: "",
   minority: "bg-yellow-200/70 text-yellow-900 underline decoration-yellow-600 decoration-2 underline-offset-2",
