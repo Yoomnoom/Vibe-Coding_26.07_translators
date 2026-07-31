@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Do_Hyeon, IBM_Plex_Mono, Noto_Serif_KR } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { InstallTracker } from "@/components/InstallTracker";
 import "./globals.css";
 
 // makingsoftware.com 참조 톤: 픽셀풍 굵은 타이틀(Do Hyeon) + 본문 세리프(Noto Serif KR) + 주석용 모노스페이스(IBM Plex Mono)
@@ -53,6 +55,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <ServiceWorkerRegister />
+        <InstallTracker />
+        <Analytics />
       </body>
     </html>
   );

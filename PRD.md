@@ -249,6 +249,14 @@ Playwright로 실제 브라우저 화면을 캡처해서(`.qa-screenshots/`, git
 - `app/layout.tsx`의 `metadata.appleWebApp`/`metadata.icons.apple` + `viewport.themeColor`(Next.js 최신 버전은 `themeColor`가 `metadata`가 아니라 별도 `viewport` export로 분리됨)로 iOS 홈 화면 추가 지원.
 - Playwright로 실제 서비스 워커 등록(`active: true`) + manifest 링크 + theme-color + apple-touch-icon 전부 정상 확인, 콘솔 에러 0건.
 
+### 접속자/설치 수 추적 (2026-08-01)
+Vercel에 배포 후 링크를 다른 사람에게 공유한 상태 — 무료 API 사용량과 직결되는 "오늘 접속자가 몇 명인지"를 알고 싶다는 요청. 커스텀 DB/로깅 파이프라인을 새로 만들지 않고, 이미 Vercel에 배포돼 있다는 전제를 활용해 **Vercel Web Analytics**(호스팅에 포함된 1st-party 기능)로 해결:
+- `@vercel/analytics` 설치, `app/layout.tsx`에 `<Analytics />` 추가 — 일별 방문자 수/페이지뷰는 이걸로 자동 수집됨(Vercel 프로젝트 대시보드의 Analytics 탭에서 확인).
+- **주의**: 코드만으로는 수집이 시작되지 않는다. Vercel 프로젝트 대시보드 → Analytics 탭에서 Web Analytics를 활성화해야 실제로 데이터가 쌓이기 시작함(Vercel CLI/OAuth 연동이 이 세션에 없어 내가 대신 켤 수 없음 — 사용자가 직접 켜야 함).
+- `components/InstallTracker.tsx` — PWA "설치한 사람 수"도 알고 싶다는 후속 요청에 대응. 브라우저의 `appinstalled` 이벤트를 감지해 `track("pwa_installed")` 커스텀 이벤트로 Vercel Analytics에 기록. **iOS Safari는 `appinstalled` 이벤트 자체가 없어(홈 화면에 추가를 감지할 JS API가 없음) iOS 설치는 집계되지 않음** — 안드로이드/데스크톱 크롬·엣지 등에서만 정확한 카운트.
+- 로컬(`next start`)에서는 Vercel Analytics 스크립트(`/_vercel/insights/script.js`)가 Vercel 엣지망에서만 서빙되는 경로라 404가 나는 게 정상 — 배포 환경에서만 실제로 동작함(Playwright로 로컬 404 확인, 기능 오류 아님을 검증).
+- 로그인 시스템이 아직 없어 "누가"까지는 특정할 수 없고, 트래픽 볼륨(몇 명/몇 회)만 확인 가능 — 개인 식별이 필요해지면 로그인 기능([[백로그]]의 "로그인 시 접속기록" 항목) 도입 시 같이 재검토.
+
 ### 남은 백로그 (다음 라운드)
 - Claude API 키가 생기면 엔진 추가 (구 3번, 계속 보류)
 - ③~⑥ 특색 아이디어 중 필요한 것 있으면 선택해서 구현
