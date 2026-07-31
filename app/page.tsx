@@ -6,6 +6,7 @@ import type { LanguageCode, SourceLanguageCode } from "@/lib/engines/types";
 import { CardState } from "@/components/EngineCard";
 import { BasicCompareTab } from "@/components/tabs/BasicCompareTab";
 import { BattleViewTab } from "@/components/tabs/BattleViewTab";
+import { BackTranslateCheckTab } from "@/components/tabs/BackTranslateCheckTab";
 import { TypoConverterTab } from "@/components/tabs/TypoConverterTab";
 import { ComingSoonTab } from "@/components/tabs/ComingSoonTab";
 import { addHistoryEntry, clearHistory, HistorySelectedResult, loadHistory, TranslationHistoryEntry } from "@/lib/history";
@@ -23,12 +24,13 @@ function initialEnabledMap(): Record<EngineId, boolean> {
 
 // 탭 구성 (PRD.md §7). "기본 비교"가 기본 선택값이고, 나머지는 특색 아이디어 탭이다.
 // "오타 변환기"는 github.com/Yoomnoom/Coding_26.07_typoConverter를 이식한 별도 유틸리티 탭.
-// ①번(배틀 뷰)만 실제 구현, ②~⑥번은 ComingSoonTab 공용 placeholder를 재사용한다.
+// ①번(배틀 뷰)·②번(역번역 체크)만 실제 구현, ③~⑥번은 ComingSoonTab 공용 placeholder를 재사용한다.
+// 역번역 체크는 우선순위를 높여 오타 변환기 바로 옆(배틀 뷰보다 앞)에 배치했다.
 const TABS = [
   { id: "basic", label: "기본 비교" },
   { id: "typo", label: "⌨ 오타 변환기" },
-  { id: "battle", label: "① 번역 신뢰도 배틀 뷰" },
   { id: "backtranslate", label: "② 역번역 체크" },
+  { id: "battle", label: "① 번역 신뢰도 배틀 뷰" },
   { id: "slang", label: "③ 신조어/유행어 감지 배지" },
   { id: "persona", label: "④ 번역기별 캐릭터화" },
   { id: "vote", label: "⑤ 투표/공유형 결과" },
@@ -37,11 +39,10 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-const COMING_SOON_CONTENT: Record<Exclude<TabId, "basic" | "typo" | "battle">, { title: string; description: string }> = {
-  backtranslate: {
-    title: "역번역 체크",
-    description: "선택된 번역을 원언어로 역번역해 의미 보존율을 비교합니다.",
-  },
+const COMING_SOON_CONTENT: Record<
+  Exclude<TabId, "basic" | "typo" | "battle" | "backtranslate">,
+  { title: string; description: string }
+> = {
   slang: {
     title: "신조어/유행어 감지 배지",
     description: "입력 문장의 신조어·밈 표현을 AI로 감지하고, 엔진별 반영 여부를 비교합니다.",
@@ -135,40 +136,13 @@ export default function Home() {
       return next;
     });
 
-    // sourceLang이 "auto"면, 5개 엔진을 전부 두 번 호출하지 않도록 가벼운 감지 API를 먼저 불러
-    // 감지된 언어를 화면에 보여주고 targetLang을 한국어↔영어 기본 페어에 맞게 조정한다.
-    // (감지 실패해도 번역 자체는 그대로 진행 — 이 단계는 어디까지나 보조 기능)
-    let resolvedTargetLang = targetLang;
-    if (sourceLang === "auto") {
-      try {
-        const detectRes = await fetch("/api/detect-language", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        const detectData = await detectRes.json();
-        const detected = detectRes.ok ? (detectData?.detectedLang as LanguageCode | null) : null;
-
-        if (detected) {
-          setDetectedSourceLang(detected);
-          // 감지된 언어가 한국어/영어면 기본 페어(한국어↔영어)로 자동 전환하고,
-          // 그 외 언어인데 감지 결과와 targetLang이 같아 무의미한 동일 언어 번역이 될 경우에만 한국어로 바꾼다.
-          if (detected === "ko") resolvedTargetLang = "en";
-          else if (detected === "en") resolvedTargetLang = "ko";
-          else if (detected === targetLang) resolvedTargetLang = "ko";
-
-          if (resolvedTargetLang !== targetLang) setTargetLang(resolvedTargetLang);
-        }
-      } catch (err) {
-        console.error("언어 감지 요청 실패 (번역은 계속 진행):", err);
-      }
-    }
-
     try {
+      // sourceLang이 "auto"면 서버(/api/translate)가 내부적으로 MyMemory로 언어를 먼저 감지하고
+      // targetLang을 한국어↔영어 기본 페어로 조정한 뒤 번역까지 한 번에 처리해 detectedLang/resolvedTargetLang을 함께 돌려준다.
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, sourceLang, targetLang: resolvedTargetLang, enabledEngines: enabledIds }),
+        body: JSON.stringify({ text, sourceLang, targetLang, enabledEngines: enabledIds }),
       });
 
       const data = await res.json();
@@ -178,6 +152,11 @@ export default function Home() {
         setCardStates(initialCardStates());
         return;
       }
+
+      const detected = data.detectedLang as LanguageCode | null;
+      if (detected) setDetectedSourceLang(detected);
+      const resolvedTargetLang = data.resolvedTargetLang as LanguageCode;
+      if (resolvedTargetLang && resolvedTargetLang !== targetLang) setTargetLang(resolvedTargetLang);
 
       const results = data.results as Record<string, { text?: string; error?: string; model?: string }>;
 
@@ -366,15 +345,34 @@ export default function Home() {
             savedPageUrl={savedPageUrl}
             history={history}
             onClearHistory={handleClearHistory}
+            onGoToBackTranslate={() => setActiveTab("backtranslate")}
           />
         )}
 
         {activeTab === "typo" && <TypoConverterTab />}
 
-        {activeTab === "battle" && <BattleViewTab translatedText={translatedText} cardStates={cardStates} />}
+        {activeTab === "backtranslate" && (
+          <BackTranslateCheckTab
+            originalText={translatedText}
+            resolvedSourceLang={sourceLang === "auto" ? detectedSourceLang : sourceLang}
+            targetLang={targetLang}
+            selectedEngineIds={selectedEngineIds}
+            cardStates={cardStates}
+            onGoToBasicTab={() => setActiveTab("basic")}
+          />
+        )}
+
+        {activeTab === "battle" && (
+          <BattleViewTab
+            translatedText={translatedText}
+            cardStates={cardStates}
+            onGoToBasicTab={() => setActiveTab("basic")}
+          />
+        )}
 
         {activeTab !== "basic" &&
           activeTab !== "typo" &&
+          activeTab !== "backtranslate" &&
           activeTab !== "battle" &&
           (() => {
             const content = COMING_SOON_CONTENT[activeTab];

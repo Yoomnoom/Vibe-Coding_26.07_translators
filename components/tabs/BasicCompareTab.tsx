@@ -1,11 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { ENGINE_CONFIG, EngineId, SOURCE_LANGUAGE_OPTIONS, SUPPORTED_LANGUAGES } from "@/lib/engines/config";
 import type { LanguageCode, SourceLanguageCode } from "@/lib/engines/types";
 import { EngineCard, CardState } from "@/components/EngineCard";
-import type { TranslationHistoryEntry } from "@/lib/history";
+import { formatHistoryAsMarkdown, type TranslationHistoryEntry } from "@/lib/history";
 
 export type SaveState = "idle" | "saving" | "success" | "error";
+
+// 바로 눌러볼 수 있는 예문 몇 개 — 빈 입력창 앞에서 뭘 쳐야 할지 고민하지 않게.
+const EXAMPLE_SENTENCES = [
+  "완전 대박이다",
+  "가성비 갑이다",
+  "오늘 컨디션 좀 텐션 높다",
+  "A bad workman always blames his tools.",
+];
 
 interface BasicCompareTabProps {
   sourceLang: SourceLanguageCode;
@@ -38,6 +47,9 @@ interface BasicCompareTabProps {
 
   history: TranslationHistoryEntry[];
   onClearHistory: () => void;
+
+  /** 선택된 번역이 있을 때 "역번역 체크" 탭으로 바로 이동시키는 콜백 */
+  onGoToBackTranslate: () => void;
 }
 
 const PREVIEW_LENGTH = 40;
@@ -82,10 +94,150 @@ export function BasicCompareTab({
   savedPageUrl,
   history,
   onClearHistory,
+  onGoToBackTranslate,
 }: BasicCompareTabProps) {
+  const [historyCopied, setHistoryCopied] = useState(false);
+
+  const handleCopyHistory = async () => {
+    await navigator.clipboard.writeText(formatHistoryAsMarkdown(history));
+    setHistoryCopied(true);
+    setTimeout(() => setHistoryCopied(false), 1500);
+  };
+
+  const handleDownloadHistory = () => {
+    const blob = new Blob([formatHistoryAsMarkdown(history)], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "translation-history.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col gap-6">
+      <section className="blueprint-panel flex flex-wrap items-center gap-3 p-4">
+        <button
+          type="button"
+          onClick={onSaveToNotion}
+          disabled={!canSave || saveState === "saving"}
+          className="rounded-sm border border-accent bg-accent-dark px-4 py-2 font-mono text-xs tracking-wide text-paper-card transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saveState === "saving"
+            ? "저장 중..."
+            : `노션에 저장${selectedEngineIds.size > 0 ? ` (${selectedEngineIds.size}개 선택됨)` : ""}`}
+        </button>
+        {selectedEngineIds.size > 0 && (
+          <button
+            type="button"
+            onClick={onGoToBackTranslate}
+            className="font-mono text-xs text-accent underline underline-offset-2 hover:text-accent-dark"
+          >
+            → 역번역 체크에서 의미 보존율 확인
+          </button>
+        )}
+        {!canSave && saveDisabledReason && <p className="font-mono text-xs text-foreground/40">{saveDisabledReason}</p>}
+        {saveMessage && (
+          <p className={`font-mono text-xs ${saveState === "success" ? "text-emerald-700" : "text-red-700"}`}>
+            {saveMessage}
+            {saveState === "success" && savedPageUrl && (
+              <>
+                {" "}
+                <a
+                  href={savedPageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-emerald-900"
+                >
+                  노션에서 열기 →
+                </a>
+              </>
+            )}
+          </p>
+        )}
+      </section>
+
       <section className="blueprint-panel flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="label-tag">
+            최근 저장 기록{history.length > 0 ? ` (${history.length}개, 최근 20개까지)` : ""}
+          </h2>
+          {history.length > 0 && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCopyHistory}
+                className="rounded-sm border border-line px-2.5 py-1 font-mono text-xs text-foreground/50 transition-colors hover:border-accent hover:text-accent"
+              >
+                {historyCopied ? "복사됨!" : "클립보드 복사"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadHistory}
+                className="rounded-sm border border-line px-2.5 py-1 font-mono text-xs text-foreground/50 transition-colors hover:border-accent hover:text-accent"
+              >
+                마크다운 다운로드
+              </button>
+              <button
+                type="button"
+                onClick={onClearHistory}
+                className="rounded-sm border border-line px-2.5 py-1 font-mono text-xs text-foreground/50 transition-colors hover:border-accent hover:text-accent"
+              >
+                기록 전체 삭제
+              </button>
+            </div>
+          )}
+        </div>
+
+        {history.length === 0 ? (
+          <p className="font-mono text-xs text-foreground/40">아직 저장한 기록이 없어요.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {history.map((entry) => {
+              const preview =
+                entry.originalText.length > PREVIEW_LENGTH
+                  ? `${entry.originalText.slice(0, PREVIEW_LENGTH)}…`
+                  : entry.originalText;
+              const engineLabels = entry.selectedResults.map((r) => r.label).join(", ");
+              return (
+                <li key={entry.id} className="rounded-sm border border-line">
+                  <details>
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 font-serif text-sm text-foreground/80 marker:content-none">
+                      <span className="font-medium">{preview}</span>
+                      <span className="font-mono text-xs text-foreground/40">
+                        {formatSourceLang(entry.sourceLang)}→{entry.targetLang} · {engineLabels || "선택 없음"}
+                      </span>
+                      <span className="ml-auto font-mono text-xs text-foreground/40">
+                        {formatSavedAt(entry.savedAt)}
+                      </span>
+                    </summary>
+                    <div className="flex flex-col gap-2 border-t border-line px-3 py-2 text-sm">
+                      <div>
+                        <span className="label-tag">원문</span>
+                        <p className="font-serif text-foreground/80">{entry.originalText}</p>
+                      </div>
+                      {entry.selectedResults.map((r) => (
+                        <div key={r.engineId}>
+                          <span className="label-tag">{r.label}</span>
+                          <p className="font-serif text-foreground/80">{r.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <p className="font-mono text-xs leading-relaxed text-foreground/60">
+        마음에 드는 번역 결과를 카드에서 <strong className="text-accent">여러 개 동시에</strong> 선택할 수 있어요. 선택한
+        카드는 파란 테두리와 체크 표시로 구분됩니다.
+      </p>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
+      <section className="blueprint-panel flex flex-col gap-3 self-start p-4">
         <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
           <label className="flex items-center gap-1.5">
             <span className="label-tag">원본</span>
@@ -138,6 +290,20 @@ export function BasicCompareTab({
           </label>
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          <span className="label-tag self-center">예문으로 체험:</span>
+          {EXAMPLE_SENTENCES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => onInputTextChange(example)}
+              className="rounded-full border border-line px-2.5 py-1 font-mono text-xs text-foreground/60 transition-colors hover:border-accent hover:text-accent"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+
         <textarea
           value={inputText}
           onChange={(e) => onInputTextChange(e.target.value)}
@@ -160,12 +326,7 @@ export function BasicCompareTab({
         </div>
       </section>
 
-      <p className="font-mono text-xs leading-relaxed text-foreground/60">
-        마음에 드는 번역 결과를 카드에서 <strong className="text-accent">여러 개 동시에</strong> 선택할 수 있어요. 선택한
-        카드는 파란 테두리와 체크 표시로 구분됩니다.
-      </p>
-
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="flex flex-col gap-4 self-start">
         {ENGINE_CONFIG.map((engine, index) => (
           <EngineCard
             key={engine.id}
@@ -179,96 +340,8 @@ export function BasicCompareTab({
           />
         ))}
       </section>
+      </div>
 
-      <section className="blueprint-panel flex flex-wrap items-center gap-3 p-4">
-        <button
-          type="button"
-          onClick={onSaveToNotion}
-          disabled={!canSave || saveState === "saving"}
-          className="rounded-sm border border-accent bg-accent-dark px-4 py-2 font-mono text-xs tracking-wide text-paper-card transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saveState === "saving"
-            ? "저장 중..."
-            : `노션에 저장${selectedEngineIds.size > 0 ? ` (${selectedEngineIds.size}개 선택됨)` : ""}`}
-        </button>
-        {!canSave && saveDisabledReason && <p className="font-mono text-xs text-foreground/40">{saveDisabledReason}</p>}
-        {saveMessage && (
-          <p className={`font-mono text-xs ${saveState === "success" ? "text-emerald-700" : "text-red-700"}`}>
-            {saveMessage}
-            {saveState === "success" && savedPageUrl && (
-              <>
-                {" "}
-                <a
-                  href={savedPageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-emerald-900"
-                >
-                  노션에서 열기 →
-                </a>
-              </>
-            )}
-          </p>
-        )}
-      </section>
-
-      <section className="blueprint-panel flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="label-tag">
-            최근 저장 기록{history.length > 0 ? ` (${history.length}개, 최근 20개까지)` : ""}
-          </h2>
-          {history.length > 0 && (
-            <button
-              type="button"
-              onClick={onClearHistory}
-              className="rounded-sm border border-line px-2.5 py-1 font-mono text-xs text-foreground/50 transition-colors hover:border-accent hover:text-accent"
-            >
-              기록 전체 삭제
-            </button>
-          )}
-        </div>
-
-        {history.length === 0 ? (
-          <p className="font-mono text-xs text-foreground/40">아직 저장한 기록이 없어요.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {history.map((entry) => {
-              const preview =
-                entry.originalText.length > PREVIEW_LENGTH
-                  ? `${entry.originalText.slice(0, PREVIEW_LENGTH)}…`
-                  : entry.originalText;
-              const engineLabels = entry.selectedResults.map((r) => r.label).join(", ");
-              return (
-                <li key={entry.id} className="rounded-sm border border-line">
-                  <details>
-                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 font-serif text-sm text-foreground/80 marker:content-none">
-                      <span className="font-medium">{preview}</span>
-                      <span className="font-mono text-xs text-foreground/40">
-                        {formatSourceLang(entry.sourceLang)}→{entry.targetLang} · {engineLabels || "선택 없음"}
-                      </span>
-                      <span className="ml-auto font-mono text-xs text-foreground/40">
-                        {formatSavedAt(entry.savedAt)}
-                      </span>
-                    </summary>
-                    <div className="flex flex-col gap-2 border-t border-line px-3 py-2 text-sm">
-                      <div>
-                        <span className="label-tag">원문</span>
-                        <p className="font-serif text-foreground/80">{entry.originalText}</p>
-                      </div>
-                      {entry.selectedResults.map((r) => (
-                        <div key={r.engineId}>
-                          <span className="label-tag">{r.label}</span>
-                          <p className="font-serif text-foreground/80">{r.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }

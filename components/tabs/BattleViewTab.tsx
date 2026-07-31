@@ -2,45 +2,23 @@
 
 import { ENGINE_CONFIG, EngineId } from "@/lib/engines/config";
 import type { CardState } from "@/components/EngineCard";
-import { computeBattleView, type WordVerdict } from "@/lib/battleView";
+import { TabEmptyNotice } from "@/components/TabEmptyNotice";
+import { computeBattleView, VERDICT_MARK, VERDICT_STYLE, VERDICT_TITLE } from "@/lib/battleView";
 
 interface BattleViewTabProps {
   /** "기본 비교" 탭에서 번역을 한 번이라도 실행했는지 판단하는 값 (번역 요청 시점 원문) */
   translatedText: string;
   cardStates: Record<EngineId, CardState>;
-}
-
-const VERDICT_STYLE: Record<WordVerdict, string> = {
-  match: "",
-  minority: "bg-yellow-200/70 text-yellow-900 underline decoration-yellow-600 decoration-2 underline-offset-2",
-  mismatch:
-    "bg-red-200/70 text-red-900 font-bold underline decoration-wavy decoration-red-600 decoration-2 underline-offset-2",
-};
-
-const VERDICT_MARK: Record<WordVerdict, string> = {
-  match: "",
-  minority: "▲",
-  mismatch: "✕",
-};
-
-const VERDICT_TITLE: Record<WordVerdict, string> = {
-  match: "일치",
-  minority: "소수 의견 — 일부 엔진만 다름",
-  mismatch: "완전 불일치",
-};
-
-function EmptyNotice({ text }: { text: string }) {
-  return (
-    <div className="blueprint-panel border-dashed p-8 text-center font-mono text-xs text-foreground/50">{text}</div>
-  );
+  /** "기본 비교" 탭으로 바로 이동시키는 콜백 */
+  onGoToBasicTab: () => void;
 }
 
 // PRD.md §7 ①번 "번역 신뢰도 배틀 뷰" 실제 구현.
 // 새 API 호출 없이 "기본 비교" 탭에서 이미 받아온 번역 결과를 어절 단위로 비교해
 // 일치/소수 의견/완전 불일치 구간을 하이라이트로 보여준다.
-export function BattleViewTab({ translatedText, cardStates }: BattleViewTabProps) {
+export function BattleViewTab({ translatedText, cardStates, onGoToBasicTab }: BattleViewTabProps) {
   if (!translatedText) {
-    return <EmptyNotice text="먼저 '기본 비교' 탭에서 번역을 실행해주세요." />;
+    return <TabEmptyNotice text="먼저 '기본 비교' 탭에서 번역을 실행해주세요." onGoToBasicTab={onGoToBasicTab} />;
   }
 
   const successfulEntries = ENGINE_CONFIG.filter((engine) => cardStates[engine.id]?.status === "done").map(
@@ -52,8 +30,9 @@ export function BattleViewTab({ translatedText, cardStates }: BattleViewTabProps
 
   if (successfulEntries.length < 2) {
     return (
-      <EmptyNotice
+      <TabEmptyNotice
         text={`비교할 결과가 2개 이상 필요합니다. (현재 성공한 번역 결과 ${successfulEntries.length}개)`}
+        onGoToBasicTab={onGoToBasicTab}
       />
     );
   }

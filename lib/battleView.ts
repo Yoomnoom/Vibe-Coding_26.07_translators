@@ -4,6 +4,20 @@
 
 export type WordVerdict = "match" | "minority" | "mismatch";
 
+// 어절 판정별 표시 스타일. BattleViewTab/BackTranslateCheckTab이 공유해서 쓴다(복붙 방지).
+export const VERDICT_STYLE: Record<WordVerdict, string> = {
+  match: "",
+  minority: "bg-yellow-200/70 text-yellow-900 underline decoration-yellow-600 decoration-2 underline-offset-2",
+  mismatch:
+    "bg-red-200/70 text-red-900 font-bold underline decoration-wavy decoration-red-600 decoration-2 underline-offset-2",
+};
+export const VERDICT_MARK: Record<WordVerdict, string> = { match: "", minority: "▲", mismatch: "✕" };
+export const VERDICT_TITLE: Record<WordVerdict, string> = {
+  match: "일치",
+  minority: "소수 의견",
+  mismatch: "불일치",
+};
+
 export interface BattleEngineEntry {
   id: string;
   label: string;

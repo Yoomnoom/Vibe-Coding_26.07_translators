@@ -56,6 +56,21 @@ export function addHistoryEntry(entry: Omit<TranslationHistoryEntry, "id">): Tra
   return next;
 }
 
+/** 저장 기록을 마크다운 텍스트로 직렬화한다 (클립보드 복사/파일 다운로드 공용). */
+export function formatHistoryAsMarkdown(entries: TranslationHistoryEntry[]): string {
+  return entries
+    .map((entry) => {
+      const lines = [
+        `## ${entry.originalText}`,
+        `_${entry.sourceLang} → ${entry.targetLang} · ${new Date(entry.savedAt).toLocaleString("ko-KR")}_`,
+        "",
+        ...entry.selectedResults.map((r) => `**${r.label}**: ${r.text}`),
+      ];
+      return lines.join("\n");
+    })
+    .join("\n\n---\n\n");
+}
+
 export function clearHistory(): void {
   if (!isBrowser()) return;
   try {

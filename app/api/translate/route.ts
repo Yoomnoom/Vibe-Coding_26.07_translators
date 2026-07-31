@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTranslations, LanguageCode, SourceLanguageCode } from "@/lib/engines";
 import { ENGINE_CONFIG } from "@/lib/engines/config";
+import { detectLanguageViaMyMemory } from "@/lib/engines/mymemory";
 
 export const runtime = "nodejs";
 
@@ -83,7 +84,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const results = await getTranslations(trimmedText, sourceLang, targetLang, enabledEngines);
+  // sourceLang이 "auto"면, 5개 엔진을 전부 두 번 호출하지 않도록 MyMemory로 가볍게 언어만 먼저 감지하고
+  // 감지 결과에 맞춰 targetLang을 한국어↔영어 기본 페어로 조정한 뒤 실제 번역을 한 번만 호출한다.
+  // (이전엔 클라이언트가 /api/detect-language를 따로 호출해 이 판단을 했으나, 호출 횟수는 그대로 두고
+  // 감지→조정→번역을 이 라우트 하나로 합쳐 왕복 한 번과 파일 하나를 줄였다.)
+  let detectedLang: LanguageCode | null = null;
+  let resolvedTargetLang = targetLang;
+  if (sourceLang === "auto") {
+    detectedLang = await detectLanguageViaMyMemory(trimmedText);
+    if (detectedLang === "ko") resolvedTargetLang = "en";
+    else if (detectedLang === "en") resolvedTargetLang = "ko";
+    else if (detectedLang === targetLang) resolvedTargetLang = "ko";
+  }
 
-  return NextResponse.json({ results });
+  const results = await getTranslations(trimmedText, sourceLang, resolvedTargetLang, enabledEngines);
+
+  return NextResponse.json({ results, detectedLang, resolvedTargetLang });
 }
