@@ -240,8 +240,18 @@ Playwright로 실제 브라우저 화면을 캡처해서(`.qa-screenshots/`, git
 - `ComingSoonTab.tsx`의 "②~⑥번 공용 placeholder" 주석이 ②번(역번역 체크) 실구현 이후에도 안 고쳐져 있던 것 정정.
 - 3라운드 전부 실제 API 호출(translate/notion/back-translate/ocr) + Playwright 스크린샷으로 검증하며 진행, `npm run build`/`lint` 매 라운드 재확인.
 
+### PWA 전환 (2026-08-01)
+휴대폰/데스크톱에 앱처럼 설치할 수 있도록 PWA로 전환. 외부 라이브러리(`next-pwa` 등) 추가 없이 Next.js 내장 기능 + stdlib만으로 구현:
+- `app/manifest.ts` — Next.js의 Metadata Files API로 `/manifest.webmanifest`를 자동 생성(별도 `<link rel="manifest">` 추가 불필요). `name`/`icons`/`theme_color`(`--accent` `#2b48d9`)/`background_color`(`--paper-card` `#fffdf6`)/`display: "standalone"`.
+- `public/icons/icon-192.png`, `icon-512.png`, `apple-touch-icon.png` — 이미지 라이브러리(sharp 등) 없이 Node 내장 `zlib`만으로 PNG를 직접 인코딩하는 일회성 스크립트로 생성(스크립트 자체는 산출물만 남기고 삭제). 앱 색상 팔레트로 만든 "겹친 카드"(번역 비교를 상징) 아이콘.
+- `public/sw.js` — 최소 서비스 워커. 앱 셸(`/`)만 오프라인 폴백용으로 캐시하고, 번역/OCR/노션 등 API 요청과 정적 자원은 캐싱하지 않고 그대로 네트워크로 통과시킴 — 실시간 API 응답을 캐시하면 오래된 결과를 보여줄 위험이 있어(앱의 진짜 목적이 실제 API 비교라서) 일부러 캐시 범위를 최소화함.
+- `components/ServiceWorkerRegister.tsx` — 서비스 워커 등록만 담당하는 별도 클라이언트 컴포넌트, `app/layout.tsx`(서버 컴포넌트)에 부수효과 없이 얹음.
+- `app/layout.tsx`의 `metadata.appleWebApp`/`metadata.icons.apple` + `viewport.themeColor`(Next.js 최신 버전은 `themeColor`가 `metadata`가 아니라 별도 `viewport` export로 분리됨)로 iOS 홈 화면 추가 지원.
+- Playwright로 실제 서비스 워커 등록(`active: true`) + manifest 링크 + theme-color + apple-touch-icon 전부 정상 확인, 콘솔 에러 0건.
+
 ### 남은 백로그 (다음 라운드)
 - Claude API 키가 생기면 엔진 추가 (구 3번, 계속 보류)
 - ③~⑥ 특색 아이디어 중 필요한 것 있으면 선택해서 구현
 - 노션에 남은 테스트 데이터([QA 테스트], [백엔드 테스트], [중복테스트], [스크린샷 QA] 등 접두사) — 삭제 도구가 없어 자동 정리 못 함, 사용자가 수동으로 정리 필요
 - 역번역 체크(②) 배치 폴백은 번호 매긴 프롬프트를 파싱하는 방식이라, 모델이 형식을 안 지키면(번호 누락 등) 그 엔진은 실패 처리하고 다음 순위로 넘어감 — 실제로 자주 발생하면 파싱 로직(`lib/engines/prompt.ts`의 `parseNumberedBatchResponse`)을 더 관대하게 다듬을 필요가 있음
+- 로그인 기능을 만들 때 사용자 접속기록(access log)도 함께 추가할 것 (2026-08-01 사용자 요청, 지금은 로그인 자체가 없어 보류)
