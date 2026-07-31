@@ -25,16 +25,12 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "번역 비교 앱",
+  title: "번역기들",
   description: "여러 번역 API 결과를 비교하고 노션에 기록하는 개인용 도구",
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/icons/apple-touch-icon.png",
-  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "번역비교",
+    title: "번역기들",
   },
 };
 

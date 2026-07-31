@@ -13,6 +13,7 @@ import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { ComingSoonTab } from "@/components/tabs/ComingSoonTab";
 import { addHistoryEntry, clearHistory, HistorySelectedResult, loadHistory, TranslationHistoryEntry } from "@/lib/history";
 import { Divider } from "@/components/Divider";
+import { VisitCounter } from "@/components/VisitCounter";
 
 type CardStateMap = Record<EngineId, CardState>;
 
@@ -398,7 +399,7 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-10 sm:px-8">
       <header className="flex flex-col gap-2">
         <div className="flex items-baseline gap-3">
-          <h1 className="font-display text-4xl tracking-wide text-accent">번역 비교</h1>
+          <h1 className="font-display text-4xl tracking-wide text-accent">번역기들</h1>
           <span className="label-tag">v1 · notion archive</span>
         </div>
         <p className="font-mono text-xs leading-relaxed text-foreground/60">
@@ -518,6 +519,10 @@ export default function Home() {
 
         {activeTab === "history" && <HistoryTab history={history} onClearHistory={handleClearHistory} />}
       </div>
+
+      <footer className="flex justify-end">
+        <VisitCounter />
+      </footer>
     </div>
   );
 }
