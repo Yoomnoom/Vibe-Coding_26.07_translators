@@ -263,7 +263,7 @@ Vercel에 배포 후 링크를 다른 사람에게 공유한 상태 — 무료 A
 - **방문자 수를 노션 대시보드가 아니라 앱 화면 안에도(거슬리지 않게) 노출**해달라는 요청 — `components/VisitCounter.tsx`가 화면 맨 아래에 아주 작고 흐린 글자(`text-foreground/30`)로 "오늘 방문 N명"만 표시. 브라우저 세션당 1회만 증가 요청을 보내고(세션스토리지로 중복 방지), 그 외엔 조회만 함. 연동이 안 됐거나 실패하면 조용히 아무것도 렌더링하지 않음(깨진 UI 대신 완전히 숨김).
 - **저장소는 처음에 노션으로 만들었다가 Supabase로 교체함** — 사용자가 "매일 갱신되는 단순 숫자를 왜 문서 도구(노션)에 기록하냐"고 정확히 지적함. 노션은 원자적 증가가 안 돼 읽고-다시-쓰는 방식이라 동시 방문 시 카운트가 씹힐 수 있고, MCP로 만든 DB가 앱의 내부 통합과 별도 권한 공유까지 필요했음 — 단순 카운터엔 안 맞는 도구였다는 게 실제로 증명된 사례. `supabase/schema.sql`(사용자가 Supabase SQL Editor에서 1회 실행)의 `increment_visit` RPC가 upsert+증가를 단일 SQL 문으로 처리해 진짜 원자적 증가를 보장함. `app/api/visit/route.ts`는 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`(서버 전용, `.env.local`)로 `@supabase/supabase-js` 사용.
 - 이전에 만들었던 노션 "방문 기록" DB는 이제 안 씀 — 사용자가 노션에서 수동으로 지워도 되고 그냥 둬도 무해함(더 이상 참조하는 코드 없음).
-- 사용자가 직접 Supabase 프로젝트 생성 + 스키마 실행 + 로컬/Vercel 환경변수(`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`) 등록까지 완료, 실제 증가(1→2)/조회 API 호출로 동작 확인됨. 테스트 중 쌓인 당일 카운트는 확인 후 0으로 초기화해둠.
+- 사용자가 직접 Supabase 프로젝트 생성 + 스키마 실행 완료. Vercel Production 환경변수는 처음엔 사용자가 대시보드에서 등록을 놓쳐서 실제 배포 사이트가 `{count:null}`을 반환했음 — 사용자가 발급한 임시 Vercel API 토큰으로 `POST /v10/projects/{id}/env`(Production 타깃) 호출해 두 값을 직접 등록하고, `POST /v13/deployments`(기존 배포 참조 재배포)로 즉시 반영, 실제 배포 도메인에서 증가(1)/조회 API 호출로 최종 확인함. 테스트 호출로 쌓인 당일 카운트는 매번 확인 후 0으로 초기화해둠.
 
 ### 남은 백로그 (다음 라운드)
 - Claude API 키가 생기면 엔진 추가 (구 3번, 계속 보류)
