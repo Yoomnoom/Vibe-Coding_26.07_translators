@@ -12,6 +12,7 @@ import { OcrTab } from "@/components/tabs/OcrTab";
 import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { ComingSoonTab } from "@/components/tabs/ComingSoonTab";
 import { addHistoryEntry, clearHistory, HistorySelectedResult, loadHistory, TranslationHistoryEntry } from "@/lib/history";
+import { loadEngineOrder, saveEngineOrder } from "@/lib/engineOrder";
 import { Divider } from "@/components/Divider";
 import { VisitCounter } from "@/components/VisitCounter";
 
@@ -99,16 +100,37 @@ export default function Home() {
   // "② 역번역 체크" 탭 상태. 탭을 옮겨도 결과가 사라지지 않도록(그리고 다시 탭에 들어와도 자동 재호출
   // 하지 않도록) app/page.tsx(최상위)에서 유지한다 — PRD.md §7 ②번, 자동 실행 금지 요구사항 참고.
   const [backTranslateRun, setBackTranslateRun] = useState<BackTranslateRunState>({ status: "idle" });
+  // 엔진 카드(ENGINE 01~05) 표시 순서. 기본은 고정(잠김)이고, 고정을 해제해야만 마우스로 드래그해
+  // 순서를 바꿀 수 있다. 바뀐 순서는 localStorage에 저장돼 새로고침해도 유지된다 (lib/engineOrder.ts).
+  const [engineOrder, setEngineOrder] = useState<EngineId[]>(ENGINE_CONFIG.map((e) => e.id));
+  const [isEngineOrderLocked, setIsEngineOrderLocked] = useState(true);
 
-  // 새로고침해도 로컬 히스토리가 유지되도록 마운트 시 localStorage(외부 저장소)에서 불러온다 (PRD.md §6.4).
+  // 새로고침해도 로컬 히스토리/엔진 순서가 유지되도록 마운트 시 localStorage(외부 저장소)에서 불러온다 (PRD.md §6.4).
   // localStorage는 서버에 없는 외부 시스템이라 SSR 시점엔 읽을 수 없어 useEffect로 클라이언트 마운트 후 동기화한다.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 외부 저장소(localStorage) 최초 동기화, 마운트 시 1회만 실행
     setHistory(loadHistory());
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 위와 동일한 이유
+    setEngineOrder(loadEngineOrder());
   }, []);
 
   const toggleEnabled = (id: EngineId) => {
     setEnabled((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const reorderEngine = (fromIndex: number, toIndex: number) => {
+    setEngineOrder((prev) => {
+      if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      saveEngineOrder(next);
+      return next;
+    });
+  };
+
+  const setAllEnabled = (value: boolean) => {
+    setEnabled(Object.fromEntries(ENGINE_CONFIG.map((e) => [e.id, value])) as Record<EngineId, boolean>);
   };
 
   const handleSourceLangChange = (lang: SourceLanguageCode) => {
@@ -471,6 +493,11 @@ export default function Home() {
                 translateError={translateError}
                 enabled={enabled}
                 onToggleEnabled={toggleEnabled}
+                onSetAllEnabled={setAllEnabled}
+                engineOrder={engineOrder}
+                isEngineOrderLocked={isEngineOrderLocked}
+                onToggleEngineOrderLocked={() => setIsEngineOrderLocked((prev) => !prev)}
+                onReorderEngine={reorderEngine}
                 cardStates={cardStates}
                 selectedEngineIds={selectedEngineIds}
                 onSelect={handleSelect}

@@ -1,5 +1,7 @@
 "use client";
 
+import type { DragEvent } from "react";
+
 export type CardState =
   | { status: "off" }
   | { status: "idle" }
@@ -15,17 +17,49 @@ interface EngineCardProps {
   isSelected: boolean;
   onToggleEnabled: () => void;
   onSelect: () => void;
+  /** 순서 고정이 풀렸을 때만 true — 카드를 마우스로 드래그해 순서를 바꿀 수 있게 한다. */
+  isOrderUnlocked: boolean;
+  onDragStart?: () => void;
+  onDragOver?: (e: DragEvent<HTMLDivElement>) => void;
+  onDrop?: () => void;
+  isDragging?: boolean;
 }
 
-export function EngineCard({ label, index, enabled, state, isSelected, onToggleEnabled, onSelect }: EngineCardProps) {
+export function EngineCard({
+  label,
+  index,
+  enabled,
+  state,
+  isSelected,
+  onToggleEnabled,
+  onSelect,
+  isOrderUnlocked,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  isDragging,
+}: EngineCardProps) {
   return (
     <div
+      draggable={isOrderUnlocked}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className={`blueprint-panel flex flex-col gap-3 p-4 transition-colors ${
         isSelected ? "border-accent ring-1 ring-accent bg-accent-soft/40" : ""
-      }`}
+      } ${isDragging ? "opacity-40" : ""}`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {isOrderUnlocked && (
+            <span
+              className="cursor-grab select-none text-foreground/40 active:cursor-grabbing"
+              aria-hidden="true"
+              title="드래그해서 순서 변경"
+            >
+              ⠿
+            </span>
+          )}
           <span className="label-tag">ENGINE {String(index + 1).padStart(2, "0")}</span>
           <span className="font-serif font-semibold text-foreground">{label}</span>
           {isSelected && (
