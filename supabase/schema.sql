@@ -13,3 +13,20 @@ as $$
   on conflict (date) do update set count = visit_counts.count + 1
   returning count;
 $$;
+
+-- 무료 API 사용량 가드(콩글리시 찾기의 네이버 백과사전 호출 등)용 일별/API별 카운터.
+create table if not exists api_usage_counts (
+  date date not null,
+  api_name text not null,
+  count integer not null default 0,
+  primary key (date, api_name)
+);
+
+create or replace function increment_api_usage(p_date date, p_api text)
+returns integer
+language sql
+as $$
+  insert into api_usage_counts (date, api_name, count) values (p_date, p_api, 1)
+  on conflict (date, api_name) do update set count = api_usage_counts.count + 1
+  returning count;
+$$;

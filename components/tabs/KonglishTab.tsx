@@ -102,8 +102,22 @@ export function KonglishTab() {
               <span className="label-tag">결과</span>
               {provider && <span className="font-mono text-xs text-foreground/40">조회: {provider}</span>}
             </div>
-            <div className="min-h-[3.5rem] whitespace-pre-wrap rounded-sm border border-line bg-paper-card p-3 font-serif text-sm leading-relaxed text-foreground/80">
-              {answer}
+            <div className="min-h-[3.5rem] rounded-sm border border-line bg-paper-card p-3 font-serif text-sm leading-relaxed text-foreground/80">
+              {answer.split("\n").map((line, i) => {
+                const match = line.match(/^(영어 표현\s*:\s*)(.+)$/);
+                return (
+                  <p key={i} className="whitespace-pre-wrap">
+                    {match ? (
+                      <>
+                        {match[1]}
+                        <strong>{match[2]}</strong>
+                      </>
+                    ) : (
+                      line || " "
+                    )}
+                  </p>
+                );
+              })}
             </div>
           </>
         )}
