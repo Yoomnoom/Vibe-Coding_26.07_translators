@@ -102,6 +102,71 @@ export async function translateWithOpenRouter({
   };
 }
 
+/**
+ * "콩글리시 찾기" 탭에서 쓰는 범용 프롬프트 실행 함수. 완성된 프롬프트 문자열을 그대로 받아
+ * FREE_MODELS를 순서대로 시도한다(번역과 동일한 로테이션·429 처리 로직 재사용).
+ */
+export async function completeWithOpenRouter(prompt: string): Promise<EngineResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." };
+  }
+
+  const attempts: string[] = [];
+
+  for (const model of FREE_MODELS) {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "http://localhost:3000",
+          "X-Title": "Translation Comparator",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+          max_tokens: MAX_TOKENS,
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+
+      if (res.status === 429) {
+        attempts.push(`${model}: 429 한도 초과`);
+        continue;
+      }
+
+      const data = (await res.json()) as OpenRouterResponse;
+
+      if (!res.ok) {
+        attempts.push(`${model}: ${res.status} ${data.error?.message ?? ""}`.trim());
+        continue;
+      }
+
+      const answer = data.choices?.[0]?.message?.content?.trim();
+      if (!answer) {
+        attempts.push(`${model}: 빈 응답`);
+        continue;
+      }
+
+      return { text: answer, model };
+    } catch (err) {
+      attempts.push(`${model}: ${err instanceof Error ? err.message : "알 수 없는 오류"}`);
+    }
+  }
+
+  console.error("[OpenRouter 콩글리시] 모든 무료 모델 호출 실패:", attempts.join(" | "));
+  const hadTimeout = attempts.some((a) => /timeout|abort/i.test(a));
+  if (hadTimeout) {
+    return { error: "OpenRouter 응답이 너무 늦어 요청을 취소했습니다. 잠시 후 다시 시도해주세요." };
+  }
+  return {
+    error: "OpenRouter 무료 모델을 모두 시도했지만 응답을 받지 못했습니다 (무료 사용량 한도 초과 가능). 잠시 후 다시 시도해주세요.",
+  };
+}
+
 const OCR_PROMPT =
   "Extract the text in this image exactly as written, without correcting spelling or wording. " +
   "Reply with only the extracted text, no explanation. If there is no text, reply with an empty response.";

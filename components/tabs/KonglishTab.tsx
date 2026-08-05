@@ -83,6 +83,15 @@ export function KonglishTab() {
           >
             {status === "loading" ? "찾는 중..." : "찾기"}
           </button>
+          {status === "done" && (
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="rounded-sm border border-line px-3 py-2 font-mono text-xs text-foreground/60 transition-colors hover:border-accent hover:text-accent"
+            >
+              {copied ? "복사됨!" : "결과 복사"}
+            </button>
+          )}
         </div>
 
         {status === "error" && error && <p className="font-mono text-xs text-red-700">{error}</p>}
@@ -96,13 +105,6 @@ export function KonglishTab() {
             <div className="min-h-[3.5rem] whitespace-pre-wrap rounded-sm border border-line bg-paper-card p-3 font-serif text-sm leading-relaxed text-foreground/80">
               {answer}
             </div>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="self-start rounded-sm border border-line px-3 py-1.5 font-mono text-xs text-foreground/60 transition-colors hover:border-accent hover:text-accent"
-            >
-              {copied ? "복사됨!" : "결과 복사"}
-            </button>
           </>
         )}
       </section>
