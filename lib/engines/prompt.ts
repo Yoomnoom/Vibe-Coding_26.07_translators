@@ -1,10 +1,15 @@
 import { LanguageCode, SourceLanguageCode, ToneId } from "./types";
 
 // PRD.md §7 ⑥번 "문맥 슬라이더"에서 쓰는 톤별 프롬프트 지시문.
+// 2026-08-05 사용자 피드백: "비즈니스체가 너무 직역이다/어색하다" — 원인은 지시문이 "격식만 최대한 올려라"는
+// 식이라 모델이 문법적으로 딱딱한 존댓말/겸양어를 기계적으로 덧씌우기만 하고, 실제 원어민이 그 상황에서
+// 자연스럽게 쓸 법한 문장으로 다시 짜는 대신 원문 구조를 그대로 둔 채 격식만 얹는 경향이 있었음.
+// → "지나치게 딱딱하지 않게, 실제로 그렇게 말할 법하게"라는 자연스러움 기준을 각 톤 지시문에 명시적으로 추가.
 const TONE_INSTRUCTION: Record<ToneId, string> = {
-  casual: "친한 친구 사이에 쓰는 편한 반말체로,",
-  formal: "예의를 갖춘 정중한 존댓말(격식체)로,",
-  business: "이메일·보고서에 쓸 법한 공식적인 비즈니스체로,",
+  casual: "친한 친구 사이에서 실제로 편하게 대화하듯 쓰는 반말체로,",
+  formal: "웃어른이나 처음 만난 사이에 쓰는 예의 바르면서도 부드러운 존댓말(격식체)로, 지나치게 딱딱하지 않게,",
+  business:
+    "이메일·제안서에 어울리는 정중한 비즈니스체로, 다만 문법만 격식체로 바꾼 것처럼 어색하거나 과하게 겸양하지 말고 실제 업무 상황에서 원어민이 자연스럽게 쓸 법한 문장으로,",
 };
 
 // LLM 프롬프트에 자연스러운 한국어 문장으로 넣기 위한 대상 언어 표시명.
@@ -33,7 +38,7 @@ export function buildTranslationPrompt(
   const targetLabel = TARGET_LABEL_KO[targetLang] ?? targetLang;
   void sourceLang; // 모델이 자동 감지 가능하므로 프롬프트에는 굳이 명시하지 않는다.
   const firstLine = tone
-    ? `다음 문장을 ${targetLabel}로, ${TONE_INSTRUCTION[tone]} 자연스럽게 번역해줘.`
+    ? `다음 문장을 ${targetLabel}로, ${TONE_INSTRUCTION[tone]} 자연스럽게 번역해줘. 단어 하나하나를 그대로 옮기는 직역 말고, 그 상황에서 원어민이 실제로 그렇게 말할 법한 자연스러운 문장으로 바꿔서 번역해줘.`
     : `다음 문장을 ${targetLabel}로 자연스럽게 번역해줘.`;
   return [
     firstLine,
@@ -57,6 +62,24 @@ export function buildBatchTranslationPrompt(targetLang: LanguageCode, texts: str
     `설명, 원문 반복, 따옴표 등 번역문 외의 텍스트는 절대 추가하지 마. 반드시 ${texts.length}개 전부 답해줘.`,
     ``,
     numbered,
+  ].join("\n");
+}
+
+/**
+ * "콩글리시 찾기" 탭(오타 변환기 옆 유틸리티, PRD.md §15 참고)에서 쓰는 프롬프트.
+ * 한국식으로 굳어진 영어 표현(콩글리시)의 실제 영어 단어/표현을 찾아주고, 다르다면 왜 다른지 설명한다.
+ */
+export function buildKonglishPrompt(word: string): string {
+  return [
+    `다음은 한국에서 흔히 쓰는 말이야: "${word}"`,
+    `이 말에 해당하는 실제 영어 단어나 표현이 뭔지 알려줘. 한국식 콩글리시(원래 영어와 다르게 굳어진 표현)라면`,
+    `그 사실과 진짜 영어 표현을 명확히 알려주고, 왜 다른지 1~2문장으로 짧게 설명해줘.`,
+    `이미 정확한 영어 표현이면 그냥 맞다고 하고 짧은 예문 하나만 보여줘.`,
+    ``,
+    `다음 형식으로 한국어로만 답해, 다른 설명이나 인사말은 절대 추가하지 마:`,
+    `영어 표현: <실제 영어 단어/구>`,
+    `설명: <1~2문장>`,
+    `예문: <영어 예문 1개>`,
   ].join("\n");
 }
 

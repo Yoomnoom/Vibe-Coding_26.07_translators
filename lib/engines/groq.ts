@@ -1,5 +1,5 @@
 import { BatchEngineResult, EngineResult, LanguageCode, TranslateParams } from "./types";
-import { buildBatchTranslationPrompt, buildTranslationPrompt, parseNumberedBatchResponse } from "./prompt";
+import { buildBatchTranslationPrompt, buildKonglishPrompt, buildTranslationPrompt, parseNumberedBatchResponse } from "./prompt";
 import { describeCatchError, describeHttpError } from "./errors";
 
 const MODEL = "llama-3.3-70b-versatile";
@@ -53,6 +53,50 @@ export async function translateWithGroq({ text, sourceLang, targetLang, tone }: 
     }
 
     return { text: translated, model: MODEL };
+  } catch (err) {
+    return { error: describeCatchError(err, "Groq") };
+  }
+}
+
+/**
+ * "콩글리시 찾기" 탭에서 Gemini가 실패했을 때 쓰는 2순위 폴백.
+ */
+export async function findRealEnglishWithGroq(word: string): Promise<EngineResult> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return { error: "GROQ_API_KEY가 설정되지 않았습니다." };
+  }
+
+  const prompt = buildKonglishPrompt(word);
+
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: MAX_TOKENS,
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    const data = (await res.json()) as GroqResponse;
+
+    if (!res.ok) {
+      return { error: describeHttpError(res.status, "Groq", data.error?.message) };
+    }
+
+    const answer = data.choices?.[0]?.message?.content?.trim();
+    if (!answer) {
+      return { error: "Groq 응답이 비어있습니다." };
+    }
+
+    return { text: answer, model: MODEL };
   } catch (err) {
     return { error: describeCatchError(err, "Groq") };
   }

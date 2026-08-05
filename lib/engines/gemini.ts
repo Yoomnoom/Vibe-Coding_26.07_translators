@@ -1,5 +1,5 @@
 import { BatchEngineResult, EngineResult, LanguageCode, TranslateParams } from "./types";
-import { buildBatchTranslationPrompt, buildTranslationPrompt, parseNumberedBatchResponse } from "./prompt";
+import { buildBatchTranslationPrompt, buildKonglishPrompt, buildTranslationPrompt, parseNumberedBatchResponse } from "./prompt";
 import { describeCatchError, describeHttpError } from "./errors";
 
 // "gemini-2.0-flash" 계열은 이 키의 무료 티어에서 할당량이 0으로 막혀 있어 사용 불가.
@@ -114,6 +114,50 @@ export async function extractTextFromImage(imageBase64: string, mimeType: string
       .trim();
 
     return { text: extracted, model: MODEL };
+  } catch (err) {
+    return { error: describeCatchError(err, "Gemini") };
+  }
+}
+
+/**
+ * "콩글리시 찾기" 탭(오타 변환기 옆, PRD.md §15 참고)의 1순위 조회 엔진.
+ */
+export async function findRealEnglish(word: string): Promise<EngineResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { error: "GEMINI_API_KEY가 설정되지 않았습니다." };
+  }
+
+  const prompt = buildKonglishPrompt(word);
+
+  try {
+    const res = await fetch(`${ENDPOINT}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: MAX_OUTPUT_TOKENS },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    const data = (await res.json()) as GeminiResponse;
+
+    if (!res.ok) {
+      return { error: describeHttpError(res.status, "Gemini", data.error?.message) };
+    }
+
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
+    const answer = parts
+      .filter((p) => !p.thought && p.text)
+      .map((p) => p.text)
+      .join("")
+      .trim();
+    if (!answer) {
+      return { error: "Gemini 응답이 비어있습니다." };
+    }
+
+    return { text: answer, model: MODEL };
   } catch (err) {
     return { error: describeCatchError(err, "Gemini") };
   }

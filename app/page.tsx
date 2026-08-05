@@ -9,6 +9,7 @@ import { BattleViewTab } from "@/components/tabs/BattleViewTab";
 import { BackTranslationTab, type BackTranslateRunState } from "@/components/tabs/BackTranslationTab";
 import { ToneSliderTab, type ToneCardStateMap } from "@/components/tabs/ToneSliderTab";
 import { TypoConverterTab } from "@/components/tabs/TypoConverterTab";
+import { KonglishTab } from "@/components/tabs/KonglishTab";
 import { OcrTab } from "@/components/tabs/OcrTab";
 import { HistoryTab } from "@/components/tabs/HistoryTab";
 import { ComingSoonTab } from "@/components/tabs/ComingSoonTab";
@@ -41,6 +42,7 @@ function initialToneCardStates(): ToneCardStateMap {
 const TABS = [
   { id: "basic", label: "번역기들" },
   { id: "typo", label: "⌨ 오타 변환기" },
+  { id: "konglish", label: "🔤 콩글리시 찾기" },
   { id: "ocr", label: "📷 이미지 텍스트 추출" },
   { id: "history", label: "🕓 최근 기록" },
 ] as const;
@@ -770,6 +772,8 @@ export default function Home() {
         )}
 
         {activeTab === "typo" && <TypoConverterTab />}
+
+        {activeTab === "konglish" && <KonglishTab />}
 
         {activeTab === "ocr" && <OcrTab onSendToBasicTab={handleSendOcrTextToBasic} />}
 
