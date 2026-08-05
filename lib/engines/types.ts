@@ -6,10 +6,15 @@ export type LanguageCode = "ko" | "en" | "ja" | "zh" | "es" | "fr" | "de" | "vi"
 // 원본 언어만 "자동 감지"를 고를 수 있다 (번역할 언어는 항상 명시적으로 골라야 함).
 export type SourceLanguageCode = LanguageCode | "auto";
 
+// PRD.md §7 ⑥번 "문맥 슬라이더" — 반말/격식체/비즈니스체 톤. LLM 엔진(Gemini/Groq/OpenRouter)에서만
+// 프롬프트로 표현 가능해 tone은 optional로 두고, DeepL/MyMemory는 이 필드를 그냥 무시한다.
+export type ToneId = "casual" | "formal" | "business";
+
 export interface TranslateParams {
   text: string;
   sourceLang: SourceLanguageCode;
   targetLang: LanguageCode;
+  tone?: ToneId;
 }
 
 export interface EngineResult {

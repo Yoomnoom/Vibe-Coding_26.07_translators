@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTranslations, LanguageCode, SourceLanguageCode } from "@/lib/engines";
-import { ENGINE_CONFIG, SUPPORTED_LANGUAGES } from "@/lib/engines/config";
+import { ENGINE_CONFIG, SUPPORTED_LANGUAGES, TONE_OPTIONS } from "@/lib/engines/config";
 import { detectLanguageViaMyMemory } from "@/lib/engines/mymemory";
+import type { ToneId } from "@/lib/engines/types";
 
 export const runtime = "nodejs";
 
@@ -17,12 +18,15 @@ const MAX_TEXT_LENGTH = 3000;
 // 라우트 검증용 화이트리스트. lib/engines/config.ts(엔진 메타데이터)를 그대로 재사용해
 // 실제로 존재하는 엔진 목록과 항상 일치하도록 한다.
 const KNOWN_ENGINE_IDS: string[] = ENGINE_CONFIG.map((e) => e.id);
+// PRD.md §7 ⑥번 "문맥 슬라이더"용 선택적 파라미터. 안 보내면 기존과 동일하게 동작한다.
+const SUPPORTED_TONES: ToneId[] = TONE_OPTIONS.map((t) => t.id);
 
 interface TranslateRequestBody {
   text?: string;
   sourceLang?: string;
   targetLang?: string;
   enabledEngines?: string[];
+  tone?: string;
 }
 
 function isSupportedLang(value: unknown): value is LanguageCode {
@@ -33,6 +37,10 @@ function isSupportedSourceLang(value: unknown): value is SourceLanguageCode {
   return typeof value === "string" && (SUPPORTED_SOURCE_LANGS as readonly string[]).includes(value);
 }
 
+function isSupportedTone(value: unknown): value is ToneId {
+  return typeof value === "string" && (SUPPORTED_TONES as readonly string[]).includes(value);
+}
+
 export async function POST(req: NextRequest) {
   let body: TranslateRequestBody;
   try {
@@ -41,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "잘못된 요청 본문입니다." }, { status: 400 });
   }
 
-  const { text, sourceLang, targetLang, enabledEngines } = body;
+  const { text, sourceLang, targetLang, enabledEngines, tone } = body;
 
   // 1. 빈 텍스트 / 공백만 있는 텍스트 거부
   if (!text || typeof text !== "string" || !text.trim()) {
@@ -85,20 +93,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // sourceLang이 "auto"면, 5개 엔진을 전부 두 번 호출하지 않도록 MyMemory로 가볍게 언어만 먼저 감지하고
-  // 감지 결과에 맞춰 targetLang을 한국어↔영어 기본 페어로 조정한 뒤 실제 번역을 한 번만 호출한다.
+  // 6. tone은 선택 파라미터(§7 ⑥번 문맥 슬라이더) — 안 보내면 기존과 동일하게 동작하고,
+  // 보냈는데 알 수 없는 값이면 거부한다.
+  if (tone !== undefined && !isSupportedTone(tone)) {
+    return NextResponse.json(
+      { error: `지원하지 않는 톤입니다. tone은 ${SUPPORTED_TONES.join(", ")} 중 하나여야 합니다.` },
+      { status: 400 }
+    );
+  }
+
+  // sourceLang이 "auto"면, 5개 엔진을 전부 두 번 호출하지 않도록 MyMemory로 가볍게 언어만 먼저 감지한다.
   // (이전엔 클라이언트가 /api/detect-language를 따로 호출해 이 판단을 했으나, 호출 횟수는 그대로 두고
   // 감지→조정→번역을 이 라우트 하나로 합쳐 왕복 한 번과 파일 하나를 줄였다.)
+  // targetLang은 사용자가 명시적으로 고른 값이라 그대로 존중하고, **감지된 언어와 targetLang이 완전히
+  // 같을 때만**(자기 자신으로 번역하는 건 의미가 없으니) 한국어↔영어 기본 페어로 대체한다.
+  // 예전엔 "감지 == ko"면 무조건 target을 en으로 덮어써서, 사용자가 targetLang을 일본어 등으로
+  // 골라도 무시되는 버그가 있었음(2026-08-05 리포트로 확인) — 이 조건으로 수정.
   let detectedLang: LanguageCode | null = null;
   let resolvedTargetLang = targetLang;
   if (sourceLang === "auto") {
     detectedLang = await detectLanguageViaMyMemory(trimmedText);
-    if (detectedLang === "ko") resolvedTargetLang = "en";
-    else if (detectedLang === "en") resolvedTargetLang = "ko";
-    else if (detectedLang === targetLang) resolvedTargetLang = "ko";
+    if (detectedLang && detectedLang === targetLang) {
+      resolvedTargetLang = detectedLang === "ko" ? "en" : "ko";
+    }
   }
 
-  const results = await getTranslations(trimmedText, sourceLang, resolvedTargetLang, enabledEngines);
+  const results = await getTranslations(
+    trimmedText,
+    sourceLang,
+    resolvedTargetLang,
+    enabledEngines,
+    tone as ToneId | undefined
+  );
 
   return NextResponse.json({ results, detectedLang, resolvedTargetLang });
 }

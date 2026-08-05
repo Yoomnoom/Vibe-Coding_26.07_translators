@@ -16,7 +16,8 @@ interface EngineCardProps {
   state: CardState;
   isSelected: boolean;
   onToggleEnabled: () => void;
-  onSelect: () => void;
+  /** 생략하면(문맥 슬라이더처럼 노션 저장 선택 개념이 없는 화면) "이 번역 선택" 버튼 자체를 렌더링하지 않는다. */
+  onSelect?: () => void;
   /** 순서 고정이 풀렸을 때만 true — 카드를 마우스로 드래그해 순서를 바꿀 수 있게 한다. */
   isOrderUnlocked: boolean;
   onDragStart?: () => void;
@@ -104,20 +105,24 @@ export function EngineCard({
         )}
       </div>
 
-      <button
-        type="button"
-        disabled={!enabled || state.status !== "done"}
-        onClick={onSelect}
-        aria-pressed={isSelected}
-        aria-label={isSelected ? `${label} 번역 선택됨, 클릭하면 선택 해제` : `${label} 번역 선택 (다른 엔진도 함께 선택 가능)`}
-        className={`rounded-sm border px-3 py-1.5 font-mono text-xs tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-          isSelected
-            ? "border-accent bg-accent text-paper-card hover:bg-accent-dark"
-            : "border-line bg-transparent text-foreground/60 hover:border-accent hover:text-accent"
-        }`}
-      >
-        {isSelected ? "✓ 선택됨 (클릭 시 취소)" : "이 번역 선택 (여러 개 가능)"}
-      </button>
+      {onSelect && (
+        <button
+          type="button"
+          disabled={!enabled || state.status !== "done"}
+          onClick={onSelect}
+          aria-pressed={isSelected}
+          aria-label={
+            isSelected ? `${label} 번역 선택됨, 클릭하면 선택 해제` : `${label} 번역 선택 (다른 엔진도 함께 선택 가능)`
+          }
+          className={`rounded-sm border px-3 py-1.5 font-mono text-xs tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            isSelected
+              ? "border-accent bg-accent text-paper-card hover:bg-accent-dark"
+              : "border-line bg-transparent text-foreground/60 hover:border-accent hover:text-accent"
+          }`}
+        >
+          {isSelected ? "✓ 선택됨 (클릭 시 취소)" : "이 번역 선택 (여러 개 가능)"}
+        </button>
+      )}
     </div>
   );
 }

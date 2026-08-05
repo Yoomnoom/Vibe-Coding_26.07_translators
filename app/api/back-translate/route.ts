@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 // PRD.md §7 "역번역 체크". SUPPORTED_LANGUAGES(lib/engines/config.ts)에서 파생 —
 // /api/translate와 동일한 소스를 공유해 언어 목록이 두 곳에서 따로 관리되지 않게 한다.
 const SUPPORTED_LANGS: LanguageCode[] = SUPPORTED_LANGUAGES.map((l) => l.code);
-const MAX_ITEMS = 5;
+// "결과 비교"(엔진 5개)뿐 아니라 "문맥 슬라이더"(엔진 3개 × 톤 최대 3개 = 9개)도 이 라우트를 쓰므로
+// 5로는 부족해 여유를 두고 10으로 올림(2026-08-05).
+const MAX_ITEMS = 10;
 const MAX_TEXT_LENGTH = 3000;
 
 interface BackTranslateRequestBody {

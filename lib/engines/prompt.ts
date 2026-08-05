@@ -1,4 +1,11 @@
-import { LanguageCode, SourceLanguageCode } from "./types";
+import { LanguageCode, SourceLanguageCode, ToneId } from "./types";
+
+// PRD.md §7 ⑥번 "문맥 슬라이더"에서 쓰는 톤별 프롬프트 지시문.
+const TONE_INSTRUCTION: Record<ToneId, string> = {
+  casual: "친한 친구 사이에 쓰는 편한 반말체로,",
+  formal: "예의를 갖춘 정중한 존댓말(격식체)로,",
+  business: "이메일·보고서에 쓸 법한 공식적인 비즈니스체로,",
+};
 
 // LLM 프롬프트에 자연스러운 한국어 문장으로 넣기 위한 대상 언어 표시명.
 // (SUPPORTED_LANGUAGES의 라벨은 드롭다운 UI용 네이티브 표기라 프롬프트 문장에는 어색해서 별도로 둔다.)
@@ -13,12 +20,23 @@ const TARGET_LABEL_KO: Record<LanguageCode, string> = {
   vi: "베트남어",
 };
 
-/** AI(LLM) 번역 엔진(Gemini/Groq/OpenRouter)에서 공통으로 쓰는 단순 번역 프롬프트 */
-export function buildTranslationPrompt(sourceLang: SourceLanguageCode, targetLang: LanguageCode, text: string) {
+/**
+ * AI(LLM) 번역 엔진(Gemini/Groq/OpenRouter)에서 공통으로 쓰는 단순 번역 프롬프트.
+ * tone이 주어지면(§7 ⑥ 문맥 슬라이더) 반말/격식체/비즈니스체 지시문을 앞에 덧붙인다 — 생략하면 기존과 동일한 프롬프트.
+ */
+export function buildTranslationPrompt(
+  sourceLang: SourceLanguageCode,
+  targetLang: LanguageCode,
+  text: string,
+  tone?: ToneId
+) {
   const targetLabel = TARGET_LABEL_KO[targetLang] ?? targetLang;
   void sourceLang; // 모델이 자동 감지 가능하므로 프롬프트에는 굳이 명시하지 않는다.
+  const firstLine = tone
+    ? `다음 문장을 ${targetLabel}로, ${TONE_INSTRUCTION[tone]} 자연스럽게 번역해줘.`
+    : `다음 문장을 ${targetLabel}로 자연스럽게 번역해줘.`;
   return [
-    `다음 문장을 ${targetLabel}로 자연스럽게 번역해줘.`,
+    firstLine,
     `번역된 문장만 출력하고, 따옴표·설명·부연 설명 등 다른 텍스트는 절대 추가하지 마.`,
     ``,
     `문장: ${text}`,

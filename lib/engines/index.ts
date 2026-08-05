@@ -1,4 +1,4 @@
-import { EngineDefinition, EngineResult, LanguageCode, SourceLanguageCode } from "./types";
+import { EngineDefinition, EngineResult, LanguageCode, SourceLanguageCode, ToneId } from "./types";
 import { ENGINE_CONFIG } from "./config";
 import { translateWithDeepl } from "./deepl";
 import { translateWithMyMemory } from "./mymemory";
@@ -29,14 +29,17 @@ export async function getTranslations(
   text: string,
   sourceLang: SourceLanguageCode,
   targetLang: LanguageCode,
-  enabledEngineIds: string[]
+  enabledEngineIds: string[],
+  // PRD.md §7 ⑥번 "문맥 슬라이더"용. DeepL/MyMemory는 프롬프트가 없는 고정 API라 이 값을 그냥 무시하고
+  // 평소처럼 번역한다 — LLM 3종(Gemini/Groq/OpenRouter)만 실제로 반말/격식체/비즈니스체를 반영한다.
+  tone?: ToneId
 ): Promise<Record<string, EngineResult>> {
   const active = ENGINES.filter((e) => enabledEngineIds.includes(e.id));
 
   const entries = await Promise.all(
     active.map(async (engine): Promise<[string, EngineResult]> => {
       try {
-        const result = await engine.translate({ text, sourceLang, targetLang });
+        const result = await engine.translate({ text, sourceLang, targetLang, tone });
         return [engine.id, result];
       } catch (err) {
         return [

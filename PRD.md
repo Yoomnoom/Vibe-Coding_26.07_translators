@@ -94,7 +94,7 @@
 | ③ | 신조어/유행어 감지 배지 | 입력 문장의 신조어·밈 표현을 AI로 감지, 엔진별 반영 여부 비교 | LLM 엔진에 감지용 프롬프트 추가 호출 필요 |
 | ④ | 번역기별 캐릭터화 | 각 엔진에 페르소나 부여, 캐릭터 말투 코멘트 | 프롬프트 추가 호출 필요 |
 | ⑤ | 투표/공유형 결과 | 선택 결과 공유 링크 + 방문자 투표 통계 (Phase 2 성격, realtime DB 필요) | 탭 안내만, 실제 기능은 보류 |
-| ⑥ | 문맥 슬라이더 | 반말↔격식체↔비즈니스체 톤 슬라이더로 재번역 비교 | 톤별 프롬프트 파라미터화 필요 |
+| ⑥ | 문맥 슬라이더 | 반말↔격식체↔비즈니스체 톤 슬라이더로 재번역 비교 | **구현 완료 (2026-08-05, 재설계)** (`components/tabs/ToneSliderTab.tsx`). 처음엔 "결과 비교"의 번역 결과를 그대로 가져와 재번역하는 연동형이었으나, "결과 비교처럼 텍스트를 붙여넣고 여러 사이트에서 검색하는 용도로 쓸 것 같다"는 피드백으로 완전히 독립된 입력창(자체 원문/언어/엔진 결과 상태)을 갖는 형태로 재설계함. 엔진 목록·켜기끄기·순서(`enabled`/`engineOrder`/`isEngineOrderLocked`)는 "결과 비교"와 그대로 공유해서 "같은 사이트, 같은 버튼"으로 통일. 별도 API/오케스트레이션 모듈 없이 기존 `/api/translate`에 optional `tone` 파라미터만 추가해 그대로 재사용(`lib/engines/index.ts`의 `getTranslations`, `lib/engines/prompt.ts`의 `buildTranslationPrompt`). DeepL/MyMemory는 프롬프트를 못 받는 고정 API라 tone을 그냥 무시하고 평소처럼 번역하고, LLM 3종(Gemini/Groq/OpenRouter)만 실제로 톤을 반영함. 슬라이더는 3단(반말/격식체/비즈니스체) 세그먼트 버튼으로 구현하되, "결과 비교"와 달리 톤 버튼은 선택만 하고 "번역하기" 버튼을 눌러야 호출됨(버튼도 통일). **톤은 다중 선택 가능**(체크박스처럼 동작) — "하나만 보이니 비교하기 불편하다"는 피드백으로, 엔진 카드 하나에 선택된 톤 전부의 결과를 나란히 쌓아서 보여줌. DeepL/MyMemory는 톤을 무시하므로 1번만 호출해 그 결과를 선택된 톤 전부에 복제하고, LLM 3종은 선택된 톤 개수만큼 병렬 호출해 실제로 다른 결과를 받음(`app/page.tsx`의 `handleTranslateTone`). |
 
 ## 8. 노션 데이터베이스 설계 (구현 완료, 2026-08-01 재설계)
 
@@ -212,6 +212,7 @@ Playwright로 실제 브라우저 화면을 캡처해서(`.qa-screenshots/`, git
 
 ### 언어 처리
 - **원본 언어 자동 감지** — 드롭다운에 "자동 감지" 추가. DeepL은 `source_lang` 생략, MyMemory는 `langpair=autodetect|...` 사용. 감지·target 조정·번역을 `/api/translate` 한 라우트에서 처리(별도 감지 라우트로 뺐다가 왕복 줄이려 재통합). **주의**: MyMemory 감지 호출의 target은 지원 8언어 밖 값("it")으로 고정해야 함 — target이 감지된 언어와 같으면 403(PLEASE SELECT TWO DISTINCT LANGUAGES)으로 실패하는 걸 실측으로 확인. (구 7번)
+- **버그 수정 — targetLang을 일본어 등으로 골라도 무시되던 문제** (2026-08-05) — 원본 언어를 "자동 감지"로 두고 번역할 언어를 일본어로 골랐는데 실제로는 영어로 번역되는 버그 리포트로 발견. **원인**: `resolvedTargetLang` 계산이 "감지된 언어가 ko면 무조건 target=en, en이면 무조건 target=ko"였어서, targetLang을 ko/en이 아닌 다른 언어로 명시적으로 골라도 항상 덮어써졌음(`app/api/translate/route.ts`). **수정**: "감지된 언어와 targetLang이 완전히 같을 때만"(자기 자신으로 번역은 의미 없으므로) ko↔en 기본 페어로 대체하도록 조건을 하나로 통일 — 사용자가 고른 targetLang이 감지된 언어와 다르면 항상 그대로 존중함. 실제 호출로 (자동 감지+일본어 선택, 한국어 입력) → 일본어로 정상 번역되는 것과 기존 ko/en 자동 스왑 케이스 둘 다 회귀 확인.
 
 ### 특색 아이디어 ②역번역 체크 (§7 ②번 참고)
 - **최초 구현** — 성공한 번역 전체를 원언어로 역번역해 비교하는 기능 최초 구현, 오타 변환기 옆(배틀 뷰보다 앞)에 배치. (구 9번)
@@ -266,9 +267,18 @@ Vercel에 배포 후 링크를 다른 사람에게 공유한 상태 — 무료 A
 - 사용자가 직접 Supabase 프로젝트 생성 + 스키마 실행 완료. Vercel Production 환경변수는 처음엔 사용자가 대시보드에서 등록을 놓쳐서 실제 배포 사이트가 `{count:null}`을 반환했음 — 사용자가 발급한 임시 Vercel API 토큰으로 `POST /v10/projects/{id}/env`(Production 타깃) 호출해 두 값을 직접 등록하고, `POST /v13/deployments`(기존 배포 참조 재배포)로 즉시 반영, 실제 배포 도메인에서 증가(1)/조회 API 호출로 최종 확인함. 테스트 호출로 쌓인 당일 카운트는 매번 확인 후 0으로 초기화해둠.
 - **본인(운영자) 방문은 집계에서 빠져야 한다는 지적** — 실제로 사용자 본인이 테스트 삼아 3번 들어간 게 그대로 카운트에 잡힘. `components/VisitCounter.tsx`에 운영자 전용 URL 파라미터(`?owner=1`)를 추가 — 한 번 이 파라미터로 접속하면 그 브라우저에 `localStorage` 플래그가 영구 저장되고, 이후로는 그 브라우저의 방문이 증가 요청을 보내지 않음(조회만 함, 카운터 자체는 계속 보임). 세션스토리지가 아니라 로컬스토리지라 브라우저를 재시작해도 계속 제외됨 — 본인이 쓰는 기기/브라우저마다 한 번씩 `https://<배포주소>/?owner=1`로 접속해두면 됨.
 
+### 특색 아이디어 ⑥문맥 슬라이더 (§7 ⑥번 참고, 2026-08-05)
+- **최초 구현** — 반말/격식체/비즈니스체 3단 톤으로 재번역하는 탭 최초 구현. "결과 비교"에서 이미 번역한 원문(`translatedText`)을 그대로 가져와 재번역하는 연동형으로 만들고, LLM 3종(Gemini/Groq/OpenRouter) 전용 API(`app/api/tone-translate/route.ts`)를 따로 둠.
+- **재설계 — 독립 입력창 + 엔진/버튼 통일** — "결과 비교와 연동해 쓰기보다, 결과 비교처럼 텍스트를 붙여넣고 여러 사이트에서 검색하는 방향으로 쓸 것 같다"는 피드백을 받음. **왜**: 사용자가 실제로 원하는 사용 흐름은 "번역기들 결과 재활용"이 아니라 "톤 비교만 독립적으로 해보고 싶을 때 바로 텍스트를 붙여넣는" 것이었기 때문. → ToneSliderTab을 "결과 비교"와 같은 레이아웃(언어 선택 드롭다운 + 자체 입력창 + "번역하기" 버튼 + 엔진 카드)의 완전히 독립된 도구로 재설계. **엔진 목록/켜기끄기/순서**(`enabled`/`engineOrder`/`isEngineOrderLocked`)는 "결과 비교"와 상태 자체를 공유해 두 탭에서 항상 같은 엔진 구성이 보이도록 통일. 별도 API(`app/api/tone-translate/route.ts`)·오케스트레이션(`lib/toneTranslate.ts`)은 삭제하고, 기존 `/api/translate`에 optional `tone` 파라미터만 추가해 그대로 재사용(`lib/engines/index.ts`의 `getTranslations`가 tone을 각 엔진의 `translate()` 호출로 그냥 전달 — DeepL/MyMemory는 무시, LLM 3종만 반영). `components/EngineCard.tsx`의 `onSelect`를 optional로 바꿔 노션 저장용 "이 번역 선택" 버튼 없이도 같은 카드 컴포넌트를 재사용하게 함.
+- 실제 호출로 검증(재설계 후): DeepL/MyMemory/Gemini/Groq/OpenRouter 5개 엔진 전부에 business 톤으로 "오늘 시간 되면 같이 밥 먹을래?"를 보내 DeepL/MyMemory는 톤 무시하고 평소처럼("Would you like to eat together when you have time today?"), Groq/OpenRouter는 비즈니스체로("Would you be available to have lunch together at your convenience today?") 응답하는 것 확인. tone 없는 일반 `/api/translate` 호출도 기존과 동일하게 동작하는 것 회귀 확인.
+- **톤 다중 선택으로 변경** — "체크한 항목을 모두 볼 수 있게 폭을 늘리면 어떨까, 비교하려는데 하나만 보이니 불편하다"는 피드백. **왜**: 이 탭의 핵심 목적 자체가 "톤별 비교"인데 단일 선택은 그 목적에 안 맞았음. → `tone: ToneId` 단일 선택을 `selectedTones: ToneId[]` 다중 선택(체크박스처럼 토글, 기본값 3개 전부 선택)으로 변경. 결과 데이터 구조도 `Record<EngineId, CardState>`에서 `Record<EngineId, Partial<Record<ToneId, CardState>>>`(`ToneCardStateMap`)로 바꿔, 엔진 카드 하나 안에 선택된 톤 결과를 전부 나란히 쌓아서 보여줌.
+- **DeepL/MyMemory를 탭에서 완전히 제외** — "톤 지원 안 되는 엔진을 뭐하러 두냐"는 피드백. **왜**: 처음엔 "사이트도 통일" 요청에 맞춰 5개 엔진을 다 보여줬으나, 톤이 반영 안 되는 2개를 그대로 두니 "3개 선택했는데 결과가 1개만 나온다"는 혼란만 유발하고 실효도 없었음. → `lib/engines/config.ts`에 `TONE_SUPPORTED_ENGINE_IDS`(gemini/groq/openrouter) 화이트리스트를 추가해 이 탭에는 그 3개만 렌더링·호출함(`ToneSliderTab.tsx`의 `visibleEngineOrder`, `app/page.tsx`의 `handleTranslateTone`). 드래그 순서 변경은 "결과 비교"와 공유하는 전체 5개짜리 `engineOrder` 배열 기준 인덱스를 그대로 써야 해서, 화면에 보이는 카드 번호(ENGINE 01~03)만 이 탭 기준으로 다시 매기고 실제 재정렬은 원본 배열 인덱스로 처리함. 실제 호출로 casual/business 두 톤을 동시에 선택해 Groq/OpenRouter가 각각 다른 톤의 결과를 반환하는 것 확인.
+- **톤 표시 순서 고정 + 요청을 순차 실행으로 변경** — ① "반말/격식체/비즈니스체 순서가 클릭한 순서로 뒤죽박죽 보인다"는 리포트로, 카드 안 톤 순서를 `selectedTones`(클릭 순서) 대신 `TONE_OPTIONS`의 고정 순서로 정렬해서 렌더링하도록 수정. ② "3개 톤 중 하나만 '무료 사용량 한도 초과'로 실패한다"는 리포트로 원인 조사 — Gemini만 단독 호출해도 실패해서 이번 건 자체는 **그날 Gemini 일일 무료 할당량이 실제로 소진된 것**(버그 아님)으로 확인했지만, 조사 중 톤별 요청을 `Promise.all`로 **병렬** 실행하고 있어서 무료 티어 엔진에 톤 개수만큼(최대 3개) 동시 요청이 몰리는 구조적 리스크를 발견 → 톤별 요청을 순차 실행으로 바꿔(`app/page.tsx`의 `handleTranslateTone`) 결과가 도착하는 대로 하나씩 채워지게 하고 동시 요청 경합을 줄임.
+- **"문맥 슬라이더"에도 역번역 체크 연결** — "결과물을 확인하려면 역번역할 수 있어야겠지?"라는 제안으로, "결과 비교"의 "전체 결과 역번역으로 검증 →" 버튼과 인프라(`/api/back-translate`, `lib/backTranslate.ts`)를 문맥 슬라이더에도 연결함. 엔진 하나가 톤별로 여러 결과를 낼 수 있어서 항목 id를 `"groq-casual"`처럼 엔진+톤 합성 키로 구분(`app/api/back-translate/route.ts`는 engineId를 문자열로만 다뤄 화이트리스트 검증이 없어 그대로 사용 가능). 켜진 엔진(최대 3) × 선택된 톤(최대 3) = 최대 9개 항목이 나올 수 있어 `MAX_ITEMS`를 5 → 10으로 올림. "결과 비교"/"문맥 슬라이더" 중 어느 쪽에서 트리거했는지에 따라 "역번역 체크" 화면의 원문 표시와 "다시 확인" 재요청 대상이 달라져야 해서 `backTranslateOriginalText`/`backTranslateSource` 상태로 구분(`app/page.tsx`). 실제 호출로 엔진×톤 합성 4개 항목을 한 번에 역번역해 정상 응답받는 것 확인.
+
 ### 남은 백로그 (다음 라운드)
 - Claude API 키가 생기면 엔진 추가 (구 3번, 계속 보류)
-- ③~⑥ 특색 아이디어 중 필요한 것 있으면 선택해서 구현
+- ③④⑤ 특색 아이디어 중 필요한 것 있으면 선택해서 구현 (⑥번은 구현 완료)
 - 노션에 남은 테스트 데이터([QA 테스트], [백엔드 테스트], [중복테스트], [스크린샷 QA] 등 접두사) — 삭제 도구가 없어 자동 정리 못 함, 사용자가 수동으로 정리 필요
 - 역번역 체크(②) 배치 폴백은 번호 매긴 프롬프트를 파싱하는 방식이라, 모델이 형식을 안 지키면(번호 누락 등) 그 엔진은 실패 처리하고 다음 순위로 넘어감 — 실제로 자주 발생하면 파싱 로직(`lib/engines/prompt.ts`의 `parseNumberedBatchResponse`)을 더 관대하게 다듬을 필요가 있음
 - 로그인 기능을 만들 때 사용자 접속기록(access log)도 함께 추가할 것 (2026-08-01 사용자 요청, 지금은 로그인 자체가 없어 보류)

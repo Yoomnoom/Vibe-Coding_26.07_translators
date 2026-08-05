@@ -3,8 +3,12 @@ import { buildTranslationPrompt } from "./prompt";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const TIMEOUT_MS = 15_000;
-// 실측: 반복 문자열(2000회) 입력에 상한 없이 호출했더니 입력의 8배(114,435자)를 반환함 -> 출력 토큰 상한 필요.
-const MAX_TOKENS = 1024;
+// 실측: 반복 문자열(2000회) 입력에 상한 없이 호출했더니 입력의 8배(114,435자)를 반환함 -> 출력 토큰 상한은 필요.
+// 다만 1024는 너무 낮아서 입력 3000자 한도 근처의 정상적인 번역(및 OCR 추출)도 중간에 잘리는 버그가 있었음
+// (2026-08-05 확인 — 반복 아닌 실제 문장 2900자 입력 시 응답이 103자에서 끊김). 실측된 폭주 사례(114,435자)보다는
+// 한참 작게 유지하면서 정상 사용은 여유 있게 수용하도록 올린다.
+// (4096으로 처음 올렸을 때도 Gemini 쪽에서 경계 사례가 실측돼 8192로 재조정, OpenRouter에도 동일하게 적용.)
+const MAX_TOKENS = 8192;
 
 // 무료(:free) 모델 로테이션 목록. 순서대로 시도하다가 429/오류가 나면 다음 모델로 자동 전환한다.
 // OpenRouter의 무료 모델 라인업은 수시로 바뀌므로(단종/이름 변경 등), 주기적으로
@@ -28,13 +32,18 @@ interface OpenRouterResponse {
   error?: { message?: string };
 }
 
-export async function translateWithOpenRouter({ text, sourceLang, targetLang }: TranslateParams): Promise<EngineResult> {
+export async function translateWithOpenRouter({
+  text,
+  sourceLang,
+  targetLang,
+  tone,
+}: TranslateParams): Promise<EngineResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." };
   }
 
-  const prompt = buildTranslationPrompt(sourceLang, targetLang, text);
+  const prompt = buildTranslationPrompt(sourceLang, targetLang, text, tone);
   const attempts: string[] = [];
 
   for (const model of FREE_MODELS) {

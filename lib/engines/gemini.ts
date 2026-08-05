@@ -7,10 +7,14 @@ import { describeCatchError, describeHttpError } from "./errors";
 const MODEL = "gemini-flash-latest";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const TIMEOUT_MS = 15_000;
-// 실측: 반복 문자열(2000회) 입력 시 상한 없으면 응답이 폭주(붕괴)하거나 비정상적으로 길어짐 -> 출력 토큰 상한 필요.
-const MAX_OUTPUT_TOKENS = 1024;
+// 실측: 반복 문자열(2000회) 입력 시 상한 없으면 응답이 폭주(붕괴)하거나 비정상적으로 길어짐 -> 출력 토큰 상한은 필요.
+// 다만 1024는 너무 낮아서 입력 3000자 한도 근처의 정상적인 번역도 문장 중간에 잘리는 버그가 있었음
+// (2026-08-05 확인 — 반복 아닌 실제 문장 2900자 입력 시 Gemini 응답이 240자에서 끊김).
+// 정상 번역은 훨씬 여유 있게 수용하면서도, 실측된 폭주 사례(입력의 8배, 114,435자)보다는 한참 작게 유지한다.
+// (4096으로 처음 올렸을 때도 입력 2900자 근처에서 문장 끝 한두 단어가 잘리는 경계 사례가 실측돼 8192로 재조정.)
+const MAX_OUTPUT_TOKENS = 8192;
 // 역번역 배치는 문장 여러 개(최대 5개) + 번호 목록 형식이 섞여 단일 문장보다 응답이 길어질 수 있어 여유를 둔다.
-const MAX_OUTPUT_TOKENS_BATCH = 2048;
+const MAX_OUTPUT_TOKENS_BATCH = 16384;
 
 interface GeminiResponse {
   candidates?: {
@@ -19,13 +23,18 @@ interface GeminiResponse {
   error?: { message?: string };
 }
 
-export async function translateWithGemini({ text, sourceLang, targetLang }: TranslateParams): Promise<EngineResult> {
+export async function translateWithGemini({
+  text,
+  sourceLang,
+  targetLang,
+  tone,
+}: TranslateParams): Promise<EngineResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return { error: "GEMINI_API_KEY가 설정되지 않았습니다." };
   }
 
-  const prompt = buildTranslationPrompt(sourceLang, targetLang, text);
+  const prompt = buildTranslationPrompt(sourceLang, targetLang, text, tone);
 
   try {
     const res = await fetch(`${ENDPOINT}?key=${apiKey}`, {
