@@ -12,6 +12,7 @@ export function KonglishTab() {
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [provider, setProvider] = useState<string | null>(null);
+  const [sourceLink, setSourceLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleSearch = async () => {
@@ -25,6 +26,7 @@ export function KonglishTab() {
     setError(null);
     setAnswer("");
     setProvider(null);
+    setSourceLink(null);
 
     try {
       const res = await fetch("/api/konglish", {
@@ -40,6 +42,7 @@ export function KonglishTab() {
       }
       setAnswer(body.text ?? "");
       setProvider(body.provider ?? null);
+      setSourceLink(body.sourceLink ?? null);
       setStatus("done");
     } catch (err) {
       console.error("콩글리시 조회 요청 실패:", err);
@@ -59,7 +62,7 @@ export function KonglishTab() {
       <section className="blueprint-panel flex flex-col gap-3 p-4">
         <p className="font-mono text-xs leading-relaxed text-foreground/60">
           &ldquo;키친&rdquo;, &ldquo;원피스&rdquo;처럼 한국식으로 굳어진 영어 표현(콩글리시)의 실제 영어 단어/표현을
-          찾아줍니다. 이미 정확한 표현이면 그대로 확인해줘요.
+          네이버 백과사전·블로그 검색 결과를 근거로 찾아줍니다. 이미 정확한 표현이면 그대로 확인해줘요.
         </p>
 
         <label className="label-tag" htmlFor="konglish-input">
@@ -102,18 +105,29 @@ export function KonglishTab() {
               <span className="label-tag">결과</span>
               {provider && <span className="font-mono text-xs text-foreground/40">조회: {provider}</span>}
             </div>
-            <div className="min-h-[3.5rem] rounded-sm border border-line bg-paper-card p-3 font-serif text-sm leading-relaxed text-foreground/80">
+            <div className="relative min-h-[3.5rem] rounded-sm border border-line bg-paper-card p-3 font-serif text-sm leading-relaxed text-foreground/80">
+              {sourceLink && (
+                <a
+                  href={sourceLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute right-2 top-2 font-mono text-xs text-accent underline-offset-2 hover:underline"
+                >
+                  백과사전 바로가기 →
+                </a>
+              )}
               {answer.split("\n").map((line, i) => {
-                const match = line.match(/^(영어 표현\s*:\s*)(.+)$/);
+                const match = line.match(/^(로마자 표기|영어 표현)(\s*:\s*)(.+)$/);
                 return (
-                  <p key={i} className="whitespace-pre-wrap">
+                  <p key={i} className="whitespace-pre-wrap pr-24">
                     {match ? (
-                      <>
+                      <strong>
                         {match[1]}
-                        <strong>{match[2]}</strong>
-                      </>
+                        {match[2]}
+                        {match[3]}
+                      </strong>
                     ) : (
-                      line || " "
+                      line || " "
                     )}
                   </p>
                 );

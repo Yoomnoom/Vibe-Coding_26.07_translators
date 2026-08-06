@@ -34,5 +34,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 502 });
   }
 
-  return NextResponse.json({ text: result.text, provider: result.provider });
+  return NextResponse.json({ text: result.text, provider: result.provider, sourceLink: result.sourceLink });
 }

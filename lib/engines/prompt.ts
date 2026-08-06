@@ -80,7 +80,7 @@ const KONGLISH_OUTPUT_FORMAT = [
 /**
  * "콩글리시 찾기" 탭(오타 변환기 옆 유틸리티, PRD.md §15 참고)에서 쓰는 프롬프트.
  * 한국식으로 굳어진 영어 표현(콩글리시)의 실제 영어 단어/표현을 찾아주고, 다르다면 왜 다른지 설명한다.
- * 네이버 백과사전 검색 결과가 없을 때(혹은 검색 자체가 실패했을 때)의 폴백 — LLM 자체 지식만으로 답한다.
+ * 네이버 검색 결과가 없을 때(혹은 검색 자체가 실패했을 때)의 폴백 — LLM 자체 지식만으로 답한다.
  */
 export function buildKonglishPrompt(word: string): string {
   return [
@@ -95,14 +95,16 @@ export function buildKonglishPrompt(word: string): string {
 }
 
 /**
- * "콩글리시 찾기"의 1순위 경로 — 네이버 백과사전 검색 결과(제목+요약)를 근거로 답을 정리하게 한다.
+ * "콩글리시 찾기"의 1순위 경로 — 네이버 검색 결과(제목+요약)를 근거로 답을 정리하게 한다.
  * LLM 혼자만의 지식보다 근거가 있는 답을 원한다는 요청(2026-08-05)으로 buildKonglishPrompt와 분리.
+ * 결과 형식(로마자 표기/영어 표현/설명/예문)은 검색 근거가 있어도 없어도 항상 동일하게 유지해야 한다는
+ * 요청(2026-08-06) — 검색 결과를 "그대로 나열"하는 대신 항상 이 형식으로 정리해서 보여준다.
  */
 export function buildKonglishPromptWithContext(word: string, snippets: string[]): string {
   const context = snippets.map((s, i) => `${i + 1}. ${s}`).join("\n");
   return [
     `다음은 한국에서 흔히 쓰는 말이야: "${word}"`,
-    `아래는 이 말에 대한 네이버 백과사전 검색 결과야:`,
+    `아래는 이 말에 대한 네이버 검색 결과야:`,
     ``,
     context,
     ``,
